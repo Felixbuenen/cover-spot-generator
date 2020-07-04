@@ -1,0 +1,2 @@
+C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Intermediate\Build\Win64\UE4Editor\Development\CoverSpotGenerator\Definitions.CoverSpotGenerator.h
+C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Source\CoverSpotGenerator\CoverSpotGenerator.h

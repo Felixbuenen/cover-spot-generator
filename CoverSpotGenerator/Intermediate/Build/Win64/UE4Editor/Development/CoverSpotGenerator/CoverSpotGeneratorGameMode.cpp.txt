@@ -1,0 +1,13 @@
+C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Intermediate\Build\Win64\UE4Editor\Development\CoverSpotGenerator\Definitions.CoverSpotGenerator.h
+C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Source\CoverSpotGenerator\CoverSpotGeneratorGameMode.h
+C:\Program Files\Epic Games\UE_4.22\Engine\Source\Runtime\Engine\Classes\GameFramework/GameModeBase.h
+C:\Program Files\Epic Games\UE_4.22\Engine\Source\Runtime\Engine\Classes\Engine/ServerStatReplicator.h
+C:\Program Files\Epic Games\UE_4.22\Engine\Intermediate\Build\Win64\UE4Editor\Inc\Engine\ServerStatReplicator.generated.h
+C:\Program Files\Epic Games\UE_4.22\Engine\Intermediate\Build\Win64\UE4Editor\Inc\Engine\GameModeBase.generated.h
+C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Intermediate\Build\Win64\UE4Editor\Inc\CoverSpotGenerator\CoverSpotGeneratorGameMode.generated.h
+C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Source\CoverSpotGenerator\CoverSpotGeneratorCharacter.h
+C:\Program Files\Epic Games\UE_4.22\Engine\Source\Runtime\Engine\Classes\GameFramework/Character.h
+C:\Program Files\Epic Games\UE_4.22\Engine\Source\Runtime\Engine\Classes\GameFramework/RootMotionSource.h
+C:\Program Files\Epic Games\UE_4.22\Engine\Intermediate\Build\Win64\UE4Editor\Inc\Engine\RootMotionSource.generated.h
+C:\Program Files\Epic Games\UE_4.22\Engine\Intermediate\Build\Win64\UE4Editor\Inc\Engine\Character.generated.h
+C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Intermediate\Build\Win64\UE4Editor\Inc\CoverSpotGenerator\CoverSpotGeneratorCharacter.generated.h
