@@ -1,3 +1,0 @@
-C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Source\CoverSpotGenerator\CoverSpotGenerator.Build.cs
-C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Source\CoverSpotGenerator.Target.cs
-C:\Users\felix\OneDrive\Documenten\Unreal Projects\cover-spot-generator\CoverSpotGenerator\Source\CoverSpotGeneratorEditor.Target.cs
