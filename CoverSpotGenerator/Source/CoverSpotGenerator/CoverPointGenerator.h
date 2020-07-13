@@ -20,10 +20,31 @@ public:
 	ACoverPointGenerator();
 
 	UPROPERTY()
-	float _coverPointMinDistance = 75.0f;
+	float _coverPointMinDistance = 35.0f;
 
 	UPROPERTY()
-	int _maxNumPointsPerEdge = 3;
+	int _maxNumPointsPerEdge = -1;
+
+	UPROPERTY()
+	float _minCrouchCoverHeight = 100.0f; // minimum height of an obstacle for it to be considered to be a crouch-cover position 
+
+	UPROPERTY()
+	float _minStandCoverHeight = 180.0f; // minimum height of an obstacle for it to be considered to be a standing-cover position
+
+	UPROPERTY()
+	float _maxAttackOverEdgeHeight = 120.0f; // if higher than this, an agent cannot lean over the edge of the obstacle and needs to lean out to the left or right of the obstacle
+
+	UPROPERTY()
+	float _sideLeanOffset = 50.0f;
+
+	UPROPERTY()
+	float _obstacleCheckDistance = 100.0f;
+
+	UPROPERTY()
+	float _obstacleSideCheckInterval = 10.0f;
+
+	UPROPERTY()
+	int _numObstacleSideChecks = 10;
 
 protected:
 	// Called when the game starts or when spawned
@@ -32,6 +53,10 @@ protected:
 	void UpdateCoverPointData();
 
 	bool AreaAlreadyHasCoverPoint(const FVector& position) const;
+	bool GetObstacleFaceNormal(UWorld* world, const FVector& edgeStart, const FVector& edgeDir, float edgeLength, FHitResult& outHit) const; // returns false if no obstacle was found
+	bool IsStandingCover(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const;
+	void ProjectNavPointsToGround(UWorld* world, FVector& p1, FVector& p2) const;
+	void TestAndAddSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal) const;
 
 	// debug drawing
 	const void DrawNavEdges() const;

@@ -10,19 +10,14 @@ struct FCoverPoint
 	FVector _location;
 	FVector _dirToCover;
 
-	FCoverPoint(FVector location, FVector dirToCover)
-	{
-		_location = location;
-		_dirToCover = dirToCover;
-	}
+	FCoverPoint(FVector location, FVector dirToCover) :
+		_location(location), _dirToCover(dirToCover) {}
 };
 
 struct FCoverPointOctreeElement
 {
 	FCoverPointOctreeElement(TSharedPtr<FCoverPoint> coverPoint, float extent) : 
-		_coverPoint(coverPoint), _bbox(coverPoint->_location, FVector(extent))
-	{
-	}
+		_coverPoint(coverPoint), _bbox(coverPoint->_location, FVector(extent)) {}
 	
 	TSharedPtr<FCoverPoint> _coverPoint;
 	FBoxCenterAndExtent _bbox;
