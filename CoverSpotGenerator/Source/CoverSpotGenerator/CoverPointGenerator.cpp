@@ -104,10 +104,6 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		TestAndAddSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.Normal);
 
 		continue;
-		//if (isStandingCover) continue;
-
-		//if (!AreaAlreadyHasCoverPoint(v1)) _coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(v1, FVector(0.0f)), _coverPointMinDistance));
-		//if (!AreaAlreadyHasCoverPoint(v2)) _coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(v2, FVector(0.0f)), _coverPointMinDistance));
 
 		int numCoverPoints = (int)(edgeLength / _coverPointMinDistance);
 		int numInternalPoints = numCoverPoints - 2; // exclude points on vertex
@@ -206,7 +202,6 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 	// (2) REFACTOR
 	// (3) more consistent variable naming
 
-	//UE_LOG(LogTemp, Warning, TEXT("Checking left (%s) and right (%s)"), *leftVertex.ToString(), *rightVertex.ToString());
 	const float vertOffset = 20.0f;
 	const float agentRadius = 30.0f; // actually half-radius
 	const float distToObstacle = agentRadius;
@@ -228,169 +223,99 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 		return;
 	}
 
-	// left endpoint
+	// check if there is side-cover to the endpoints of this nav edge. If so, generate cover points at these locations.
+	FVector leftSideCoverPoint, rightSideCoverPoint;
+
+	if (GetSideCoverPoint(world, leftVertex, rightToNormal, obstNormal, edgeDir, leftSideCoverPoint))
 	{
-		FHitResult projectHit;
-		FVector leftStart = leftVertex;
-		leftStart.Z += vertOffset;
-		FVector projectEnd = leftStart + -obstNormal * _obstacleCheckDistance;
-		UKismetSystemLibrary::LineTraceSingle(world, leftStart, projectEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, projectHit, false);
-
-		//if (projectHit.bBlockingHit)
-		{
-			FVector leftEndPoint;
-			bool foundLeftEndPoint = false;
-			//if (projectHit.Normal.Equals(obstNormal))
-			if (projectHit.bBlockingHit)
-			{
-				// go to left, stop when normal changes
-				FHitResult sideHitCheck;
-				float lastDistance = projectHit.Distance;
-				for (int i = 0; i < _numObstacleSideChecks; i++)
-				{
-					FVector start = leftStart + (i + 1) * edgeDir * _obstacleSideCheckInterval;
-					FVector stop = start + -obstNormal * _obstacleCheckDistance;
-
-					UKismetSystemLibrary::LineTraceSingle(world, start, stop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, sideHitCheck, false);
-					//if (!sideHitCheck.Normal.Equals(obstNormal))
-					if (!sideHitCheck.bBlockingHit)
-					{
-						//float offsetFromObstacle = sideHitCheck.Distance - distToObstacle;
-						//rightEndPoint = start + edgeDir * (agentRadius + _obstacleSideCheckInterval) + -obstNormal * offsetFromObstacle;
-						//foundRightEndPoint = true;
-
-						//UE_LOG(LogTemp, Warning, TEXT("difference. obst normal: %s, this normal %s: "), *obstNormal.ToString(), *sideHitCheck.Normal.ToString());
-
-						float offsetFromObstacle = lastDistance - distToObstacle;
-						leftEndPoint = start - rightToNormal * (agentRadius + _obstacleSideCheckInterval) + -obstNormal * offsetFromObstacle;
-						foundLeftEndPoint = true;
-						break;
-					}
-
-					lastDistance = sideHitCheck.Distance;
-				}
-			}
-			else
-			{
-				// go to right, stop when obstacle face found
-				FHitResult sideHitCheck;
-				for (int i = 0; i < _numObstacleSideChecks; i++)
-				{
-					FVector start = leftStart + (i + 1) * -edgeDir * _obstacleSideCheckInterval;
-					FVector stop = start + -obstNormal * _obstacleCheckDistance;
-
-					UKismetSystemLibrary::LineTraceSingle(world, start, stop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, sideHitCheck, false);
-					//if (sideHitCheck.Normal.Equals(obstNormal))
-					if (sideHitCheck.bBlockingHit)
-					{
-						float offsetFromObstacle = sideHitCheck.Distance - distToObstacle;
-						leftEndPoint = start - rightToNormal * agentRadius + -obstNormal * offsetFromObstacle;
-						foundLeftEndPoint = true;
-						break;
-					}
-				}
-			}
-
-			if (foundLeftEndPoint)
-			{
-				FHitResult visionFromSideCheck;
-				FVector visionFromSideCheckStart = leftEndPoint + rightToNormal * (_sideLeanOffset + agentRadius);
-				FVector visionFromSideCheckStop = visionFromSideCheckStart + -obstNormal * _obstacleCheckDistance;
-
-				UKismetSystemLibrary::LineTraceSingle(world, visionFromSideCheckStart, visionFromSideCheckStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, visionFromSideCheck, false);
-
-				if (!visionFromSideCheck.bBlockingHit)
-				{
-					// vision not blocked from side: valid side cover point
-					leftEndPoint.Z -= vertOffset;
-					if (!AreaAlreadyHasCoverPoint(leftEndPoint)) _coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftEndPoint, FVector(0.0f)), _coverPointMinDistance));
-					//UE_LOG(LogTemp, Warning, TEXT("added %s"), *rightEndPoint.ToString());
-
-				}
-			}
-		}
+		if(!AreaAlreadyHasCoverPoint(leftSideCoverPoint)) _coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftSideCoverPoint, FVector(0.0f)), _coverPointMinDistance));
 	}
-
-	// right endpoint
+	if (GetSideCoverPoint(world, rightVertex, -rightToNormal, obstNormal, -edgeDir, rightSideCoverPoint))
 	{
-		FHitResult projectHit;
-		FVector rightStart = rightVertex;
-		rightStart.Z += vertOffset;
-		FVector projectEnd = rightStart + -obstNormal * _obstacleCheckDistance;
-		UKismetSystemLibrary::LineTraceSingle(world, rightStart, projectEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, projectHit, false);
-
-		//if (projectHit.bBlockingHit)
-		{
-			FVector rightEndPoint;
-			bool foundRightEndPoint = false;
-			if (projectHit.Normal.Equals(obstNormal))
-			{
-				// go to right, stop when normal changes
-				FHitResult sideHitCheck;
-				float lastDistance = projectHit.Distance;
-				for (int i = 0; i < _numObstacleSideChecks; i++)
-				{
-					FVector start = rightStart + (i + 1) * -edgeDir * _obstacleSideCheckInterval;
-					FVector stop = start + -obstNormal * _obstacleCheckDistance;
-				
-					UKismetSystemLibrary::LineTraceSingle(world, start, stop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, sideHitCheck, false);
-					if (!sideHitCheck.Normal.Equals(obstNormal))
-					{
-						//float offsetFromObstacle = sideHitCheck.Distance - distToObstacle;
-						//rightEndPoint = start + edgeDir * (agentRadius + _obstacleSideCheckInterval) + -obstNormal * offsetFromObstacle;
-						//foundRightEndPoint = true;
-
-						//UE_LOG(LogTemp, Warning, TEXT("difference. obst normal: %s, this normal %s: "), *obstNormal.ToString(), *sideHitCheck.Normal.ToString());
-
-						float offsetFromObstacle = lastDistance - distToObstacle;
-						rightEndPoint = start + rightToNormal * (agentRadius + _obstacleSideCheckInterval) + -obstNormal * offsetFromObstacle;
-						foundRightEndPoint = true;
-						break;
-					}
-
-					lastDistance = sideHitCheck.Distance;
-				}
-			}
-			else
-			{
-				// go to left, stop when obstacle face found
-				FHitResult sideHitCheck;
-				for (int i = 0; i < _numObstacleSideChecks; i++)
-				{
-					FVector start = rightStart + (i + 1) * edgeDir * _obstacleSideCheckInterval;
-					FVector stop = start + -obstNormal * _obstacleCheckDistance;
-			
-					UKismetSystemLibrary::LineTraceSingle(world, start, stop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, sideHitCheck, false);
-					if (sideHitCheck.Normal.Equals(obstNormal))
-					{
-						float offsetFromObstacle = sideHitCheck.Distance - distToObstacle;
-						rightEndPoint = start + rightToNormal * agentRadius + -obstNormal * offsetFromObstacle;
-						foundRightEndPoint = true;
-						break;
-					}
-				}
-			}
-
-			if (foundRightEndPoint)
-			{
-				FHitResult visionFromSideCheck;
-				FVector visionFromSideCheckStart = rightEndPoint - rightToNormal * (_sideLeanOffset + agentRadius);
-				FVector visionFromSideCheckStop = visionFromSideCheckStart + -obstNormal * _obstacleCheckDistance;
-			
-				UKismetSystemLibrary::LineTraceSingle(world, visionFromSideCheckStart, visionFromSideCheckStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, visionFromSideCheck, false);
-			
-				if (!visionFromSideCheck.bBlockingHit)
-				{
-					// vision not blocked from side: valid side cover point
-					rightEndPoint.Z -= vertOffset;
-					if(!AreaAlreadyHasCoverPoint(rightEndPoint)) _coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightEndPoint, FVector(0.0f)), _coverPointMinDistance));
-					//UE_LOG(LogTemp, Warning, TEXT("added %s"), *rightEndPoint.ToString());
-			
-				}
-			}
-		}
+		if (!AreaAlreadyHasCoverPoint(rightSideCoverPoint)) _coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightSideCoverPoint, FVector(0.0f)), _coverPointMinDistance));
 	}
 }
+
+bool ACoverPointGenerator::GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const
+{
+	const float vertOffset = 20.0f;
+	const float distToObstacle = _agentRadius;
+
+	FHitResult projectHit;
+	FVector startPoint = navVert;
+	startPoint.Z += vertOffset;
+	FVector projectEnd = startPoint + -obstNormal * _obstacleCheckDistance;
+
+	// shoot ray from start point (nav edge vertex) towards obstacle to decide whether we should search to the left or right to find a cover spot
+	UKismetSystemLibrary::LineTraceSingle(world, startPoint, projectEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, projectHit, false);
+
+	FVector sidePoint;
+	bool foundEndPoint = false;
+
+	// if vertex perpendicular to obstacle: sweep ray in direction of lean-dir until it doesn't intersect obstacle to find its edge
+	if (projectHit.bBlockingHit) // TODO: check obstacle normal instead?
+	{
+		FHitResult sideHitCheck;
+		float lastDistance = projectHit.Distance;
+		for (int i = 0; i < _numObstacleSideChecks; i++)
+		{
+			FVector start = startPoint + (i + 1) * edgeDir * _obstacleSideCheckInterval;
+			FVector stop = start + -obstNormal * _obstacleCheckDistance;
+
+			UKismetSystemLibrary::LineTraceSingle(world, start, stop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, sideHitCheck, false);
+			if (!sideHitCheck.bBlockingHit)
+			{
+				// edge found
+				float offsetFromObstacle = lastDistance - distToObstacle;
+				sidePoint = start - leanDirection * (_agentRadius + _obstacleSideCheckInterval) + -obstNormal * offsetFromObstacle;
+				foundEndPoint = true;
+				break;
+			}
+
+			lastDistance = sideHitCheck.Distance;
+		}
+	}
+	// if vertex not perp. to obstacle: sweep ray in opposite direction of lean-dir. until obstacle is found to find its edge
+	else
+	{
+		FHitResult sideHitCheck;
+		for (int i = 0; i < _numObstacleSideChecks; i++)
+		{
+			FVector start = startPoint + (i + 1) * -edgeDir * _obstacleSideCheckInterval;
+			FVector stop = start + -obstNormal * _obstacleCheckDistance;
+
+			UKismetSystemLibrary::LineTraceSingle(world, start, stop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, sideHitCheck, false);
+			if (sideHitCheck.bBlockingHit)
+			{
+				// edge found
+				float offsetFromObstacle = sideHitCheck.Distance - distToObstacle;
+				sidePoint = start - leanDirection * _agentRadius + -obstNormal * offsetFromObstacle;
+				foundEndPoint = true;
+				break;
+			}
+		}
+	}
+
+	// found an endpoint: make sure the sides are not blocked by the obstacles (and thus provide cover from which the agent can potentially attack)
+	if (foundEndPoint)
+	{
+		FHitResult visionFromSideCheck;
+		FVector visionFromSideCheckStart = sidePoint + leanDirection * (_sideLeanOffset + _agentRadius);
+		FVector visionFromSideCheckStop = visionFromSideCheckStart + -obstNormal * _obstacleCheckDistance;
+
+		UKismetSystemLibrary::LineTraceSingle(world, visionFromSideCheckStart, visionFromSideCheckStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, visionFromSideCheck, false);
+
+		if (!visionFromSideCheck.bBlockingHit)
+		{
+			// vision not blocked from side: valid side cover point
+			sidePoint.Z -= vertOffset;
+			outSideCoverPoint = sidePoint;
+		}
+	}
+
+	return foundEndPoint;
+}
+
 
 const void ACoverPointGenerator::DrawNavEdges() const
 {

@@ -26,6 +26,9 @@ public:
 	int _maxNumPointsPerEdge = -1;
 
 	UPROPERTY()
+	float _agentRadius = 30.0f;
+
+	UPROPERTY()
 	float _minCrouchCoverHeight = 100.0f; // minimum height of an obstacle for it to be considered to be a crouch-cover position 
 
 	UPROPERTY()
@@ -57,6 +60,7 @@ protected:
 	bool IsStandingCover(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const;
 	void ProjectNavPointsToGround(UWorld* world, FVector& p1, FVector& p2) const;
 	void TestAndAddSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal) const;
+	bool GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const;
 
 	// debug drawing
 	const void DrawNavEdges() const;
