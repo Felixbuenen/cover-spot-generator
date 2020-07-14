@@ -82,9 +82,9 @@ void ACoverPointGenerator::Tick(float DeltaTime)
 void ACoverPointGenerator::UpdateCoverPointData()
 {
 	UWorld* world = GetWorld();
+	
 	// loop over all nav mesh edges
 	int numEdges = _navGeo.NavMeshEdges.Num();
-
 	for (int i = 0; i < numEdges; i += 2)
 	{
 		FVector v1 = _navGeo.NavMeshEdges[i];
@@ -100,40 +100,72 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		FHitResult obstacleCheckHit;
 		if (!GetObstacleFaceNormal(world, v1, edgeDir, edgeLength, obstacleCheckHit)) continue;
 
+		FVector outLeftSide, outRightSide;
+		TestAndAddSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.Normal, outLeftSide, outRightSide);
+
+		bool hasLeftSidePoint = !outLeftSide.Equals(v2);
+		bool hasRightSidePoint = !outRightSide.Equals(v1);
+
 		bool isStandingCover = IsStandingCover(world, v1 + edgeDir * edgeLength * 0.5f, obstacleCheckHit.Normal);
-		TestAndAddSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.Normal);
+		if (isStandingCover) continue;
 
-		continue;
+		// edge between the two side cover points
+		FVector internalEdge = (outLeftSide - outRightSide);
+		float internalEdgeLength = internalEdge.Size();
+		internalEdge /= internalEdgeLength;
 
-		int numCoverPoints = (int)(edgeLength / _coverPointMinDistance);
-		int numInternalPoints = numCoverPoints - 2; // exclude points on vertex
+		int numInternalPoints = (int)(internalEdgeLength / _coverPointMinDistance) + 1;
+		if (numInternalPoints <= 1) continue;
 
 		// optionally clamp to max. number of cover points for nav mesh edge
 		if (_maxNumPointsPerEdge > -1) numInternalPoints = FMath::Clamp<int>(numInternalPoints, 0, _maxNumPointsPerEdge);
+		float coverPointInterval = internalEdgeLength / (float)(numInternalPoints - 1);
 
-		if (numInternalPoints < 2)
+		FVector startLoc = outRightSide;
+		if (hasRightSidePoint)
 		{
-			FVector pointLocation = v1 + edgeDir * edgeLength * 0.5f;
-			// place cover point in middle of edge
-			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, FVector(0.0f)), _coverPointMinDistance));
+			startLoc += internalEdge * coverPointInterval;
+			numInternalPoints--;
 		}
-		else
+		if (hasLeftSidePoint)
 		{
-			// attempt to place cover points on edge vertices
-			// place cover points on the edge		
-			float coverPointInterval = edgeLength / (float)(numInternalPoints + 1);
-		
-			FVector startLoc = v1 + edgeDir * coverPointInterval;
+			numInternalPoints--;
+		}
 
-			for (int idx = 0; idx < numInternalPoints; idx++)
+		for (int idx = 0; idx < numInternalPoints; idx++)
+		{
+			FVector pointLocation = startLoc + idx * internalEdge * coverPointInterval;
+
+			if (ProvidesCover(world, pointLocation, obstacleCheckHit.Normal) && CanLeanOver(world, pointLocation, obstacleCheckHit.Normal))
 			{
-				FVector pointLocation = startLoc + idx * edgeDir * coverPointInterval;
-
-				if (!IsStandingCover(world, pointLocation, obstacleCheckHit.Normal))
-					_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, FVector(0.0f)), _coverPointMinDistance));
+				_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, FVector(0.0f)), _coverPointMinDistance));
 			}
 		}
 	}
+}
+
+bool ACoverPointGenerator::ProvidesCover(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const
+{
+	FVector checkStart = coverLocation;
+	checkStart.Z += _minCrouchCoverHeight;
+	FVector checkStop = checkStart + -coverFaceNormal * _obstacleCheckDistance;
+	FHitResult outHit;
+
+	UKismetSystemLibrary::LineTraceSingle(world, checkStart, checkStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHit, true);
+
+	return outHit.bBlockingHit;
+}
+
+bool ACoverPointGenerator::CanLeanOver(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const
+{
+	FVector checkStart = coverLocation;
+	checkStart.Z += _maxAttackOverEdgeHeight;
+	FVector checkStop = checkStart + -coverFaceNormal * _obstacleCheckDistance;
+	FHitResult outHit;
+
+	UKismetSystemLibrary::LineTraceSingle(world, checkStart, checkStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHit, true);
+
+	return !outHit.bBlockingHit;
 }
 
 bool ACoverPointGenerator::AreaAlreadyHasCoverPoint(const FVector& position) const
@@ -195,12 +227,15 @@ void ACoverPointGenerator::ProjectNavPointsToGround(UWorld* world, FVector& p1, 
 	if (projectHit.bBlockingHit) p2 = projectHit.Location;
 }
 
-void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal) const
+void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide) const
 {
 	// TODO: 
 	// (1) extend so that crouch- and stand height are taken into account
 	// (2) REFACTOR
 	// (3) more consistent variable naming
+
+	outLeftSide = leftVertex;
+	outRightSide = rightVertex;
 
 	const float vertOffset = 20.0f;
 	const float agentRadius = 30.0f; // actually half-radius
@@ -228,11 +263,19 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 
 	if (GetSideCoverPoint(world, leftVertex, rightToNormal, obstNormal, edgeDir, leftSideCoverPoint))
 	{
-		if(!AreaAlreadyHasCoverPoint(leftSideCoverPoint)) _coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftSideCoverPoint, FVector(0.0f)), _coverPointMinDistance));
+		if (!AreaAlreadyHasCoverPoint(leftSideCoverPoint))
+		{
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftSideCoverPoint, FVector(0.0f)), _coverPointMinDistance));
+			outLeftSide = leftSideCoverPoint;
+		}
 	}
 	if (GetSideCoverPoint(world, rightVertex, -rightToNormal, obstNormal, -edgeDir, rightSideCoverPoint))
 	{
-		if (!AreaAlreadyHasCoverPoint(rightSideCoverPoint)) _coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightSideCoverPoint, FVector(0.0f)), _coverPointMinDistance));
+		if (!AreaAlreadyHasCoverPoint(rightSideCoverPoint))
+		{
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightSideCoverPoint, FVector(0.0f)), _coverPointMinDistance));
+			outRightSide = rightSideCoverPoint;
+		}
 	}
 }
 
@@ -310,10 +353,12 @@ bool ACoverPointGenerator::GetSideCoverPoint(UWorld* world, const FVector& navVe
 			// vision not blocked from side: valid side cover point
 			sidePoint.Z -= vertOffset;
 			outSideCoverPoint = sidePoint;
+
+			return true;
 		}
 	}
 
-	return foundEndPoint;
+	return false;
 }
 
 

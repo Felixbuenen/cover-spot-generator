@@ -20,10 +20,10 @@ public:
 	ACoverPointGenerator();
 
 	UPROPERTY()
-	float _coverPointMinDistance = 35.0f;
+	float _coverPointMinDistance = 150.0f;
 
 	UPROPERTY()
-	int _maxNumPointsPerEdge = -1;
+	int _maxNumPointsPerEdge = 8;
 
 	UPROPERTY()
 	float _agentRadius = 30.0f;
@@ -59,8 +59,10 @@ protected:
 	bool GetObstacleFaceNormal(UWorld* world, const FVector& edgeStart, const FVector& edgeDir, float edgeLength, FHitResult& outHit) const; // returns false if no obstacle was found
 	bool IsStandingCover(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const;
 	void ProjectNavPointsToGround(UWorld* world, FVector& p1, FVector& p2) const;
-	void TestAndAddSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal) const;
+	void TestAndAddSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide) const;
 	bool GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const;
+	bool ProvidesCover(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const;
+	bool CanLeanOver(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const;
 
 	// debug drawing
 	const void DrawNavEdges() const;
