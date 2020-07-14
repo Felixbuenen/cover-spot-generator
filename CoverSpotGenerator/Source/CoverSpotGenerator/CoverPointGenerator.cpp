@@ -122,16 +122,20 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		float coverPointInterval = internalEdgeLength / (float)(numInternalPoints - 1);
 
 		FVector startLoc = outRightSide;
-		if (hasRightSidePoint)
+
+		// check if we should place a cover spot on right end point of nav edge
+		if (hasRightSidePoint || AreaAlreadyHasCoverPoint(startLoc))
 		{
 			startLoc += internalEdge * coverPointInterval;
 			numInternalPoints--;
 		}
-		if (hasLeftSidePoint)
+		// check if we should place a cover spot on left end point of nav edge
+		if (hasLeftSidePoint || AreaAlreadyHasCoverPoint(startLoc + internalEdge * coverPointInterval * (numInternalPoints - 1)))
 		{
 			numInternalPoints--;
 		}
 
+		// check and generate internal points
 		for (int idx = 0; idx < numInternalPoints; idx++)
 		{
 			FVector pointLocation = startLoc + idx * internalEdge * coverPointInterval;
