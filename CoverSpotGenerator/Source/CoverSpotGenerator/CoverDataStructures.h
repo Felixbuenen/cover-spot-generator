@@ -2,16 +2,26 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "GenericOctree.h"
 
+#include "CoreMinimal.h"
+#include "CoverDataStructures.generated.h"
+
+USTRUCT(BlueprintType)
 struct FCoverPoint
 {
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cover Point")
 	FVector _location;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cover Point")
 	FVector _dirToCover;
 
 	FCoverPoint(FVector location, FVector dirToCover) :
 		_location(location), _dirToCover(dirToCover) {}
+
+	FCoverPoint() {}
 };
 
 struct FCoverPointOctreeElement

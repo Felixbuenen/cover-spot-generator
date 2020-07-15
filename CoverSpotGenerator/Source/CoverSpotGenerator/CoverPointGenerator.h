@@ -77,4 +77,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	// DEBUG
+	UFUNCTION(BlueprintCallable)
+	FCoverPoint GetCoverPointWithinExtent(const FVector& position, float extent) const;
 };

@@ -3,6 +3,8 @@
 
 #include "CoverPointGenerator.h"
 
+#include <vector>
+
 #include "DrawDebugHelpers.h"
 #include "Engine/LevelBounds.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -74,7 +76,6 @@ void ACoverPointGenerator::BeginPlay()
 void ACoverPointGenerator::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 
 }
 
@@ -148,7 +149,7 @@ void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector
 
 		if (ProvidesCover(world, pointLocation, obstNormal) && CanLeanOver(world, pointLocation, obstNormal))
 		{
-			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, FVector(0.0f)), _coverPointMinDistance));
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, -obstNormal), _coverPointMinDistance));
 		}
 	}
 }
@@ -274,7 +275,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 	{
 		if (!AreaAlreadyHasCoverPoint(leftSideCoverPoint))
 		{
-			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftSideCoverPoint, FVector(0.0f)), _coverPointMinDistance));
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftSideCoverPoint, -obstNormal), _coverPointMinDistance));
 			outLeftSide = leftSideCoverPoint;
 		}
 	}
@@ -282,7 +283,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 	{
 		if (!AreaAlreadyHasCoverPoint(rightSideCoverPoint))
 		{
-			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightSideCoverPoint, FVector(0.0f)), _coverPointMinDistance));
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightSideCoverPoint, -obstNormal), _coverPointMinDistance));
 			outRightSide = rightSideCoverPoint;
 		}
 	}
@@ -429,4 +430,30 @@ const void ACoverPointGenerator::DrawCoverPointLocations() const
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("num points: %d"), blub);
+}
+
+FCoverPoint ACoverPointGenerator::GetCoverPointWithinExtent(const FVector& position, float extent) const
+{
+	FBox bbox(position - FVector(extent), position + FVector(extent));
+
+	std::vector<FCoverPoint> points;
+	FCoverPoint point;
+
+	// example code how to query octree
+	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints.Get(), bbox); it.HasPendingElements(); it.Advance())
+	{
+		points.push_back(*it.GetCurrentElement()._coverPoint.Get());
+	}
+
+	int numPoints = points.size();
+	if (numPoints == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("no points in proximity"));
+	}
+	else
+	{
+		point = points[FMath::RandRange(0, numPoints - 1)];
+	}
+	
+	return point;
 }
