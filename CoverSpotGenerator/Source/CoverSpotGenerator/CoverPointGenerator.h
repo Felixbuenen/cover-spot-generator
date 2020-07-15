@@ -60,6 +60,7 @@ protected:
 	bool IsStandingCover(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const;
 	void ProjectNavPointsToGround(UWorld* world, FVector& p1, FVector& p2) const;
 	void TestAndAddSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide) const;
+	void TestAndAddInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint) const;
 	bool GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const;
 	bool ProvidesCover(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const;
 	bool CanLeanOver(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const;

@@ -109,41 +109,46 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		bool isStandingCover = IsStandingCover(world, v1 + edgeDir * edgeLength * 0.5f, obstacleCheckHit.Normal);
 		if (isStandingCover) continue;
 
-		// edge between the two side cover points
-		FVector internalEdge = (outLeftSide - outRightSide);
-		float internalEdgeLength = internalEdge.Size();
-		internalEdge /= internalEdgeLength;
+		TestAndAddInternalPoints(world, outLeftSide, outRightSide, obstacleCheckHit.Normal, hasLeftSidePoint, hasRightSidePoint);
+	}
+}
 
-		int numInternalPoints = (int)(internalEdgeLength / _coverPointMinDistance) + 1;
-		if (numInternalPoints <= 1) continue;
+void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint) const
+{
+	// edge between the two side cover points
+	FVector internalEdge = (leftPoint - rightPoint);
+	float internalEdgeLength = internalEdge.Size();
+	internalEdge /= internalEdgeLength;
 
-		// optionally clamp to max. number of cover points for nav mesh edge
-		if (_maxNumPointsPerEdge > -1) numInternalPoints = FMath::Clamp<int>(numInternalPoints, 0, _maxNumPointsPerEdge);
-		float coverPointInterval = internalEdgeLength / (float)(numInternalPoints - 1);
+	int numInternalPoints = (int)(internalEdgeLength / _coverPointMinDistance) + 1;
+	if (numInternalPoints <= 1) return;
 
-		FVector startLoc = outRightSide;
+	// optionally clamp to max. number of cover points for nav mesh edge
+	if (_maxNumPointsPerEdge > -1) numInternalPoints = FMath::Clamp<int>(numInternalPoints, 0, _maxNumPointsPerEdge);
+	float coverPointInterval = internalEdgeLength / (float)(numInternalPoints - 1);
 
-		// check if we should place a cover spot on right end point of nav edge
-		if (hasRightSidePoint || AreaAlreadyHasCoverPoint(startLoc))
+	FVector startLoc = rightPoint;
+
+	// check if we should place a cover spot on right end point of nav edge
+	if (hasRightSidePoint || AreaAlreadyHasCoverPoint(startLoc))
+	{
+		startLoc += internalEdge * coverPointInterval;
+		numInternalPoints--;
+	}
+	// check if we should place a cover spot on left end point of nav edge
+	if (hasLeftSidePoint || AreaAlreadyHasCoverPoint(startLoc + internalEdge * coverPointInterval * (numInternalPoints - 1)))
+	{
+		numInternalPoints--;
+	}
+
+	// check and generate internal points
+	for (int idx = 0; idx < numInternalPoints; idx++)
+	{
+		FVector pointLocation = startLoc + idx * internalEdge * coverPointInterval;
+
+		if (ProvidesCover(world, pointLocation, obstNormal) && CanLeanOver(world, pointLocation, obstNormal))
 		{
-			startLoc += internalEdge * coverPointInterval;
-			numInternalPoints--;
-		}
-		// check if we should place a cover spot on left end point of nav edge
-		if (hasLeftSidePoint || AreaAlreadyHasCoverPoint(startLoc + internalEdge * coverPointInterval * (numInternalPoints - 1)))
-		{
-			numInternalPoints--;
-		}
-
-		// check and generate internal points
-		for (int idx = 0; idx < numInternalPoints; idx++)
-		{
-			FVector pointLocation = startLoc + idx * internalEdge * coverPointInterval;
-
-			if (ProvidesCover(world, pointLocation, obstacleCheckHit.Normal) && CanLeanOver(world, pointLocation, obstacleCheckHit.Normal))
-			{
-				_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, FVector(0.0f)), _coverPointMinDistance));
-			}
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, FVector(0.0f)), _coverPointMinDistance));
 		}
 	}
 }
