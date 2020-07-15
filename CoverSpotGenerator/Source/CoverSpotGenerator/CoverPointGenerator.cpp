@@ -102,14 +102,14 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		if (!GetObstacleFaceNormal(world, v1, edgeDir, edgeLength, obstacleCheckHit)) continue;
 
 		FVector outLeftSide, outRightSide;
-		TestAndAddSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.Normal, outLeftSide, outRightSide);
+		TestAndAddSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.ImpactNormal, outLeftSide, outRightSide);
 
 		bool hasLeftSidePoint = !outLeftSide.Equals(v2);
 		bool hasRightSidePoint = !outRightSide.Equals(v1);
 
 		bool isStandingCover = IsStandingCover(world, v1 + edgeDir * edgeLength * 0.5f, obstacleCheckHit.Normal);
 		if (isStandingCover) continue;
-
+		continue;
 		TestAndAddInternalPoints(world, outLeftSide, outRightSide, obstacleCheckHit.Normal, hasLeftSidePoint, hasRightSidePoint);
 	}
 }
@@ -150,6 +150,7 @@ void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector
 		if (ProvidesCover(world, pointLocation, obstNormal) && CanLeanOver(world, pointLocation, obstNormal))
 		{
 			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, -obstNormal), _coverPointMinDistance));
+			DrawDebugLine(world, FVector(pointLocation), FVector(pointLocation + obstNormal * 150.0f), FColor::Magenta, true);
 		}
 	}
 }
@@ -263,7 +264,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 	FVector initLeftStop = initLeftStart + rightVec * _obstacleCheckDistance;
 	UKismetSystemLibrary::LineTraceSingle(world, initLeftStart, initLeftStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, leftCheck, false);
 
-	if (leftCheck.bBlockingHit && rightCheck.bBlockingHit && FVector::DotProduct(leftCheck.Normal, rightCheck.Normal) < 0.8f)
+	if (leftCheck.bBlockingHit && rightCheck.bBlockingHit && FVector::DotProduct(leftCheck.ImpactNormal, rightCheck.ImpactNormal) < 0.8f)
 	{
 		return;
 	}
@@ -276,6 +277,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 		if (!AreaAlreadyHasCoverPoint(leftSideCoverPoint))
 		{
 			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftSideCoverPoint, -obstNormal), _coverPointMinDistance));
+			DrawDebugLine(world, FVector(leftSideCoverPoint), FVector(leftSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
 			outLeftSide = leftSideCoverPoint;
 		}
 	}
@@ -284,6 +286,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 		if (!AreaAlreadyHasCoverPoint(rightSideCoverPoint))
 		{
 			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightSideCoverPoint, -obstNormal), _coverPointMinDistance));
+			DrawDebugLine(world, FVector(rightSideCoverPoint), FVector(rightSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
 			outRightSide = rightSideCoverPoint;
 		}
 	}
@@ -442,6 +445,8 @@ FCoverPoint ACoverPointGenerator::GetCoverPointWithinExtent(const FVector& posit
 	// example code how to query octree
 	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints.Get(), bbox); it.HasPendingElements(); it.Advance())
 	{
+		// PROBLEM: points are generated within mesh (unreachable). either set min area size in project settings or post process the navigation mesh...
+		// probably out of scope for this project: just check if point is reachable
 		points.push_back(*it.GetCurrentElement()._coverPoint.Get());
 	}
 
@@ -454,6 +459,9 @@ FCoverPoint ACoverPointGenerator::GetCoverPointWithinExtent(const FVector& posit
 	{
 		point = points[FMath::RandRange(0, numPoints - 1)];
 	}
+
+	//DrawDebugBox(GetWorld(), point._location, FVector(100.0f), FColor::Black, false, 20.0f);
+	//DrawDebugLine(GetWorld(), point._location, point._location - point._dirToCover * 150.0f, FColor::Black, false, 20.0f, (uint8)'\000', 5.0f);
 	
 	return point;
 }
