@@ -100,16 +100,20 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		// get the normal of the face of the obstacle that this edge is parallel to
 		FHitResult obstacleCheckHit;
 		if (!GetObstacleFaceNormal(world, v1, edgeDir, edgeLength, obstacleCheckHit)) continue;
+		
+		// check if can stand over here or for each internal point?
+		bool isStandingCover = CanStand(world, v1 + edgeDir * edgeLength * 0.5f, obstacleCheckHit.Normal);
 
 		FVector outLeftSide, outRightSide;
-		TestAndAddSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.ImpactNormal, outLeftSide, outRightSide);
+		TestAndAddSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.ImpactNormal, outLeftSide, outRightSide, isStandingCover);
+
+		if (isStandingCover) continue;
+		continue;
+		// check if can lean over here or for each internal point?
 
 		bool hasLeftSidePoint = !outLeftSide.Equals(v2);
 		bool hasRightSidePoint = !outRightSide.Equals(v1);
 
-		bool isStandingCover = IsStandingCover(world, v1 + edgeDir * edgeLength * 0.5f, obstacleCheckHit.Normal);
-		if (isStandingCover) continue;
-		continue;
 		TestAndAddInternalPoints(world, outLeftSide, outRightSide, obstacleCheckHit.Normal, hasLeftSidePoint, hasRightSidePoint);
 	}
 }
@@ -149,7 +153,7 @@ void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector
 
 		if (ProvidesCover(world, pointLocation, obstNormal) && CanLeanOver(world, pointLocation, obstNormal))
 		{
-			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, -obstNormal), _coverPointMinDistance));
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(pointLocation, -obstNormal, FVector2D(0, 1), false), _coverPointMinDistance));
 			DrawDebugLine(world, FVector(pointLocation), FVector(pointLocation + obstNormal * 150.0f), FColor::Magenta, true);
 		}
 	}
@@ -210,7 +214,7 @@ bool ACoverPointGenerator::GetObstacleFaceNormal(UWorld* world, const FVector& e
 	return outHit.bBlockingHit;
 }
 
-bool ACoverPointGenerator::IsStandingCover(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const
+bool ACoverPointGenerator::CanStand(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const
 {
 	FVector checkStart = coverLocation;
 	checkStart.Z += _minStandCoverHeight;
@@ -238,7 +242,7 @@ void ACoverPointGenerator::ProjectNavPointsToGround(UWorld* world, FVector& p1, 
 	if (projectHit.bBlockingHit) p2 = projectHit.Location;
 }
 
-void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide) const
+void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand) const
 {
 	// TODO: 
 	// (1) extend so that crouch- and stand height are taken into account
@@ -276,7 +280,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 	{
 		if (!AreaAlreadyHasCoverPoint(leftSideCoverPoint))
 		{
-			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftSideCoverPoint, -obstNormal), _coverPointMinDistance));
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(leftSideCoverPoint, -obstNormal, FVector2D(-1, 0), canStand), _coverPointMinDistance));
 			DrawDebugLine(world, FVector(leftSideCoverPoint), FVector(leftSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
 			outLeftSide = leftSideCoverPoint;
 		}
@@ -285,7 +289,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 	{
 		if (!AreaAlreadyHasCoverPoint(rightSideCoverPoint))
 		{
-			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightSideCoverPoint, -obstNormal), _coverPointMinDistance));
+			_coverPoints->AddElement(FCoverPointOctreeElement(MakeShared<FCoverPoint>(rightSideCoverPoint, -obstNormal, FVector2D(1, 0), canStand), _coverPointMinDistance));
 			DrawDebugLine(world, FVector(rightSideCoverPoint), FVector(rightSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
 			outRightSide = rightSideCoverPoint;
 		}

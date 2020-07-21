@@ -12,14 +12,21 @@ struct FCoverPoint
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cover Point")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
 	FVector _location;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cover Point")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
 	FVector _dirToCover;
 
-	FCoverPoint(FVector location, FVector dirToCover) :
-		_location(location), _dirToCover(dirToCover) {}
+	// lean direction (vec2; up-left-right)
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
+	FVector2D _leanDirection;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
+	bool _canStand;
+
+	FCoverPoint(FVector location, FVector dirToCover, FVector2D leanDir, bool canStand) :
+		_location(location), _dirToCover(dirToCover), _leanDirection(leanDir), _canStand(canStand) {}
 
 	FCoverPoint() {}
 };
