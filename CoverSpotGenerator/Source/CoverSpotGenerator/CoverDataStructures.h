@@ -30,7 +30,7 @@
 //	FCoverPoint() {}
 //};
 
-UCLASS(BlueprintType)
+UCLASS(BlueprintType, Blueprintable)
 class UCoverPoint : public UObject
 {
 	GENERATED_BODY()

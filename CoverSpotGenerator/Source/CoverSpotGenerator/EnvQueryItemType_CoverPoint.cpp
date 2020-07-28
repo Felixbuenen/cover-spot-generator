@@ -13,38 +13,18 @@ UEnvQueryItemType_CoverPoint::UEnvQueryItemType_CoverPoint(const FObjectInitiali
 
 UCoverPoint* UEnvQueryItemType_CoverPoint::GetValue(const uint8* RawData)
 {
-	FWeakObjectPtr WeakObjPtr = GetValueFromMemory<FWeakObjectPtr>(RawData);
-	return (UCoverPoint*)(WeakObjPtr.Get());
+	return GetValueFromMemory<UCoverPoint*>(RawData);
 }
 
-void UEnvQueryItemType_CoverPoint::SetValue(uint8* RawData, const FWeakObjectPtr& Value)
+void UEnvQueryItemType_CoverPoint::SetValue(uint8* RawData, UCoverPoint* Value)
 {
-	FWeakObjectPtr WeakObjPtr(Value);
-	SetValueInMemory<FWeakObjectPtr>(RawData, WeakObjPtr);
+	SetValueInMemory<UCoverPoint*>(RawData, Value);
 }
 
 FVector UEnvQueryItemType_CoverPoint::GetItemLocation(const uint8* RawData) const
 {
-	UCoverPoint* coverPoint = UEnvQueryItemType_CoverPoint::GetValue(RawData);
+	UCoverPoint* coverPoint = GetValue(RawData);
 	return coverPoint ? coverPoint->_location : FVector::ZeroVector;
-}
-
-FVector UEnvQueryItemType_CoverPoint::GetItemDirection(const uint8* RawData) const
-{
-	UCoverPoint* coverPoint = UEnvQueryItemType_CoverPoint::GetValue(RawData);
-	return coverPoint ? coverPoint->_dirToCover : FVector::ZeroVector;
-}
-
-FVector UEnvQueryItemType_CoverPoint::GetItemLeanDirection(const uint8* RawData) const
-{
-	UCoverPoint* coverPoint = UEnvQueryItemType_CoverPoint::GetValue(RawData);
-	return coverPoint ? coverPoint->_leanDirection : FVector::ZeroVector;
-}
-
-UCoverPoint* UEnvQueryItemType_CoverPoint::GetCoverPoint(const uint8* RawData) const
-{
-	UCoverPoint* coverPoint = UEnvQueryItemType_CoverPoint::GetValue(RawData);
-	return coverPoint;
 }
 
 FString UEnvQueryItemType_CoverPoint::GetDescription(const uint8* RawData) const
@@ -52,13 +32,22 @@ FString UEnvQueryItemType_CoverPoint::GetDescription(const uint8* RawData) const
 	return FString("Cover Point");
 }
 
+void UEnvQueryItemType_CoverPoint::AddBlackboardFilters(FBlackboardKeySelector& KeySelector, UObject* FilterOwner) const
+{
+	Super::AddBlackboardFilters(KeySelector, FilterOwner);
+	//KeySelector.AddObjectFilter(FilterOwner, GetClass()->GetFName(), AActor::StaticClass());
+}
+
 bool UEnvQueryItemType_CoverPoint::StoreInBlackboard(FBlackboardKeySelector& KeySelector, UBlackboardComponent* Blackboard, const uint8* RawData) const
 {
+	// if vector blackboard-key is passed: only get location
 	bool bStored = Super::StoreInBlackboard(KeySelector, Blackboard, RawData);
-	if (KeySelector.SelectedKeyType == UBlackboardKeyType_Object::StaticClass())
+
+	// if object blackboard-key is passed: get complete cover point object
+	if (!bStored && KeySelector.SelectedKeyType == UBlackboardKeyType_Object::StaticClass())
 	{
-		UObject* MyObject = GetCoverPoint(RawData);
-		Blackboard->SetValue<UBlackboardKeyType_Object>(KeySelector.GetSelectedKeyID(), MyObject);
+		UObject* CoverObject = GetValue(RawData);
+		Blackboard->SetValue<UBlackboardKeyType_Object>(KeySelector.GetSelectedKeyID(), CoverObject);
 
 		bStored = true;
 	}

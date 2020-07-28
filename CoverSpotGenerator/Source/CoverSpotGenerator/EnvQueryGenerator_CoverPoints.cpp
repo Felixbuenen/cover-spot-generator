@@ -4,11 +4,13 @@
 #include "EnvQueryGenerator_CoverPoints.h"
 #include "EnvironmentQuery/Contexts/EnvQueryContext_Querier.h"
 #include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
+#include "EnvQueryItemType_CoverPoint.h"
 
 #include "CoverPointGenerator.h"
 
 UEnvQueryGenerator_CoverPoints::UEnvQueryGenerator_CoverPoints(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
+	ItemType = UEnvQueryItemType_CoverPoint::StaticClass();
 	GenerateAround = UEnvQueryContext_Querier::StaticClass();
 
 	BboxExtent.DefaultValue = 500.0f;
@@ -17,9 +19,6 @@ UEnvQueryGenerator_CoverPoints::UEnvQueryGenerator_CoverPoints(const FObjectInit
 
 void UEnvQueryGenerator_CoverPoints::GenerateItems(FEnvQueryInstance& QueryInstance) const
 {
-	UE_LOG(LogTemp, Warning, TEXT("generating items..."));
-
-
 	// bind data
 	UObject* BindOwner = QueryInstance.Owner.Get();
 	BboxExtent.BindData(BindOwner, QueryInstance.QueryID);
@@ -43,21 +42,14 @@ void UEnvQueryGenerator_CoverPoints::GenerateItems(FEnvQueryInstance& QueryInsta
 		return;
 	}
 
-	TArray<FNavLocation> CoverPointLocations;
-	//CoverPoints.Reserve( * ContextLocations.Num());
 
 	for (int32 ContextIndex = 0; ContextIndex < ContextLocations.Num(); ContextIndex++)
 	{
-		TArray<UCoverPoint*> coverPoints = gen->GetCoverPointsWithinExtent(ContextLocations[ContextIndex], BboxExtent.GetValue());
-		for (auto cp : coverPoints)
-		{
-			CoverPointLocations.Emplace(cp->_location);
-		}
-	}
-	UE_LOG(LogTemp, Warning, TEXT("num points: %d"), CoverPointLocations.Num());
+		TArray<UCoverPoint*> CoverPoints = gen->GetCoverPointsWithinExtent(ContextLocations[ContextIndex], BboxExtent.GetValue());
+		QueryInstance.AddItemData<UEnvQueryItemType_CoverPoint>(CoverPoints);
 
-	ProjectAndFilterNavPoints(CoverPointLocations, QueryInstance);
-	StoreNavPoints(CoverPointLocations, QueryInstance);
+		UE_LOG(LogTemp, Warning, TEXT("coverpoint[0] = %s"), *CoverPoints[0]->_location.ToString());
+	}
 }
 
 FText UEnvQueryGenerator_CoverPoints::GetDescriptionTitle() const

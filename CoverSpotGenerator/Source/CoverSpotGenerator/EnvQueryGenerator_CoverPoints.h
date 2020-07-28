@@ -15,7 +15,7 @@
 UCLASS(meta = (DisplayName = "Cover Points"))
 class COVERSPOTGENERATOR_API UEnvQueryGenerator_CoverPoints : public UEnvQueryGenerator_ProjectedPoints
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
 	UPROPERTY(EditDefaultsOnly, Category = "Cover Point Parameters")
 	FAIDataProviderFloatValue BboxExtent;
@@ -25,8 +25,6 @@ class COVERSPOTGENERATOR_API UEnvQueryGenerator_CoverPoints : public UEnvQueryGe
 
 	UPROPERTY(EditDefaultsOnly, Category = Generator)
 	TSubclassOf<UEnvQueryContext> GenerateAround;
-
-	UEnvQueryGenerator_CoverPoints(const FObjectInitializer& ObjectInitializer);
 
 	virtual void GenerateItems(FEnvQueryInstance& QueryInstance) const override;
 	virtual FText GetDescriptionTitle() const override;
