@@ -7,36 +7,75 @@
 #include "CoreMinimal.h"
 #include "CoverDataStructures.generated.h"
 
-USTRUCT(BlueprintType)
-struct FCoverPoint
+//USTRUCT(BlueprintType)
+//struct FCoverPoint
+//{
+//	GENERATED_USTRUCT_BODY()
+//
+//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
+//	FVector _location;
+//
+//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
+//	FVector _dirToCover;
+//
+//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
+//	FVector _leanDirection;
+//
+//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
+//	bool _canStand;
+//
+//	FCoverPoint(FVector location, FVector dirToCover, FVector leanDir, bool canStand) :
+//		_location(location), _dirToCover(dirToCover), _leanDirection(leanDir), _canStand(canStand) {}
+//
+//	FCoverPoint() {}
+//};
+
+UCLASS(BlueprintType)
+class UCoverPoint : public UObject
 {
-	GENERATED_USTRUCT_BODY()
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
+		FVector _location;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-	FVector _location;
+		FVector _dirToCover;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-	FVector _dirToCover;
-
-	// lean direction (vec2; up-left-right)
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-	FVector2D _leanDirection;
+		FVector _leanDirection;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-	bool _canStand;
+		bool _canStand;
 
-	FCoverPoint(FVector location, FVector dirToCover, FVector2D leanDir, bool canStand) :
-		_location(location), _dirToCover(dirToCover), _leanDirection(leanDir), _canStand(canStand) {}
+	UCoverPoint() = default;
 
-	FCoverPoint() {}
+	FORCEINLINE void Init(FVector location, FVector dirToCover, FVector leanDir, bool canStand)
+	{
+		_location = location;
+		_dirToCover = dirToCover;
+		_leanDirection = leanDir;
+		_canStand = canStand;
+	}
 };
 
 struct FCoverPointOctreeElement
 {
-	FCoverPointOctreeElement(TSharedPtr<FCoverPoint> coverPoint, float extent) : 
-		_coverPoint(coverPoint), _bbox(coverPoint->_location, FVector(extent)) {}
+	FCoverPointOctreeElement(UCoverPoint* coverPoint, float extent)
+	{
+		if (coverPoint != nullptr)
+		{
+			_coverPoint = coverPoint;
+			_bbox.Center = _coverPoint->_location;
+			_bbox.Extent = FVector(extent);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("coverPoint is NULL!"));
+		}
+	}
 	
-	TSharedPtr<FCoverPoint> _coverPoint;
+	UCoverPoint* _coverPoint;
 	FBoxCenterAndExtent _bbox;
 };
 

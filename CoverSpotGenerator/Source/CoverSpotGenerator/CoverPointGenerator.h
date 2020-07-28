@@ -79,5 +79,5 @@ public:
 
 	// DEBUG
 	UFUNCTION(BlueprintCallable)
-	FCoverPoint GetCoverPointWithinExtent(const FVector& position, float extent) const;
+	TArray<UCoverPoint*> GetCoverPointsWithinExtent(const FVector& position, float extent) const;
 };
