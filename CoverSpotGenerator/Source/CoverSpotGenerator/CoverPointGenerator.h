@@ -16,8 +16,6 @@ class COVERSPOTGENERATOR_API ACoverPointGenerator : public AActor
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this actor's properties
-	ACoverPointGenerator();
 
 	UPROPERTY()
 	float _coverPointMinDistance = 150.0f;
@@ -49,18 +47,26 @@ public:
 	UPROPERTY()
 	int _numObstacleSideChecks = 10;
 
+	UPROPERTY()
+	float _maxBboxExtent = 32000.f;
+
 protected:
+
+	// Sets default values for this actor's properties
+	ACoverPointGenerator();
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	void Initialize();
 	void UpdateCoverPointData();
 
 	bool AreaAlreadyHasCoverPoint(const FVector& position) const;
 	bool GetObstacleFaceNormal(UWorld* world, const FVector& edgeStart, const FVector& edgeDir, float edgeLength, FHitResult& outHit) const; // returns false if no obstacle was found
 	bool CanStand(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const;
 	void ProjectNavPointsToGround(UWorld* world, FVector& p1, FVector& p2) const;
-	void TestAndAddSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand) const;
-	void TestAndAddInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint) const;
+	void TestAndAddSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand);
+	void TestAndAddInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint);
 	bool GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const;
 	bool ProvidesCover(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const;
 	bool CanLeanOver(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const;
@@ -71,13 +77,21 @@ protected:
 
 	// nav mesh data
 	FRecastDebugGeometry _navGeo;
+
+	UPROPERTY()
+	TArray<UCoverPoint*> _coverPointBuffer; // workaround: store points in TArray so they are properly garbage collected
 	TUniquePtr<TCoverPointOctree> _coverPoints;
+
+	bool ShouldTickIfViewportsOnly() const override;
+
+private:
+	UFUNCTION()
+	void OnNavigationGenerationFinished(class ANavigationData* NavData);
 
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	// DEBUG
 	UFUNCTION(BlueprintCallable)
 	TArray<UCoverPoint*> GetCoverPointsWithinExtent(const FVector& position, float extent) const;
 };

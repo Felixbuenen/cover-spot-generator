@@ -7,29 +7,6 @@
 #include "CoreMinimal.h"
 #include "CoverDataStructures.generated.h"
 
-//USTRUCT(BlueprintType)
-//struct FCoverPoint
-//{
-//	GENERATED_USTRUCT_BODY()
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-//	FVector _location;
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-//	FVector _dirToCover;
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-//	FVector _leanDirection;
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-//	bool _canStand;
-//
-//	FCoverPoint(FVector location, FVector dirToCover, FVector leanDir, bool canStand) :
-//		_location(location), _dirToCover(dirToCover), _leanDirection(leanDir), _canStand(canStand) {}
-//
-//	FCoverPoint() {}
-//};
-
 UCLASS(BlueprintType, Blueprintable)
 class UCoverPoint : public UObject
 {
@@ -49,6 +26,10 @@ public:
 		bool _canStand;
 
 	UCoverPoint() = default;
+	~UCoverPoint() 
+	{
+		//UE_LOG(LogTemp, Warning, TEXT("Deleted"));
+	}
 
 	FORCEINLINE void Init(FVector location, FVector dirToCover, FVector leanDir, bool canStand)
 	{
@@ -63,19 +44,18 @@ struct FCoverPointOctreeElement
 {
 	FCoverPointOctreeElement(UCoverPoint* coverPoint, float extent)
 	{
-		if (coverPoint != nullptr)
-		{
-			_coverPoint = coverPoint;
-			_bbox.Center = _coverPoint->_location;
-			_bbox.Extent = FVector(extent);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("coverPoint is NULL!"));
-		}
+		_coverPoint = coverPoint;
+		_bbox.Center = _coverPoint->_location;
+		_bbox.Extent = FVector(extent);
+	}
+
+	~FCoverPointOctreeElement()
+	{
+		//UE_LOG(LogTemp, Warning, TEXT("TREE ELEMENT GOT DELETED"));
 	}
 	
 	UCoverPoint* _coverPoint;
+
 	FBoxCenterAndExtent _bbox;
 };
 

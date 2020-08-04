@@ -9,38 +9,31 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/LevelBounds.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Editor.h"
+#include "Engine/Engine.h"
+#include "Editor/EditorEngine.h"
+
+bool ACoverPointGenerator::ShouldTickIfViewportsOnly() const
+{
+	return false;
+}
 
 // Sets default values
 ACoverPointGenerator::ACoverPointGenerator()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
-
+	PrimaryActorTick.bCanEverTick = true;
+	
+	// init octree
+	_coverPoints = MakeUnique<TCoverPointOctree>(FVector::ZeroVector, _maxBboxExtent);
 }
 
-// Called when the game starts or when spawned
-void ACoverPointGenerator::BeginPlay()
+void ACoverPointGenerator::Initialize()
 {
-	Super::BeginPlay();
-
-	ULevel* currLevel = GetLevel();
-	if (currLevel)
-	{
-		FBox levelBbox = ALevelBounds::CalculateLevelBounds(currLevel);
-		
-		// init octree
-		_coverPoints = MakeUnique<TCoverPointOctree>(levelBbox.GetCenter(), levelBbox.GetExtent().GetMax());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("level ptr couldn't be loaded"));
-		return;
-	}
-
 	UWorld* world = GetWorld();
 	if (world)
 	{
-		UNavigationSystemBase* navSystem = GetWorld()->GetNavigationSystem();
+		UNavigationSystemBase* navSystem = world->GetNavigationSystem();
 		if (navSystem)
 		{
 			ARecastNavMesh* navMeshData = static_cast<ARecastNavMesh*>(FNavigationSystem::GetCurrent<UNavigationSystemV1>(world)->GetDefaultNavDataInstance());
@@ -70,6 +63,19 @@ void ACoverPointGenerator::BeginPlay()
 	// draw debug data
 	//DrawNavEdges();
 	DrawCoverPointLocations();
+
+	// bind nav mesh creation event
+	if (UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetCurrent(world))
+		NavSystem->OnNavigationGenerationFinishedDelegate.AddDynamic(this, &ACoverPointGenerator::OnNavigationGenerationFinished);
+}
+
+
+// Called when the game starts or when spawned
+void ACoverPointGenerator::BeginPlay()
+{
+	Super::BeginPlay();
+
+	Initialize();
 }
 
 
@@ -83,6 +89,8 @@ void ACoverPointGenerator::Tick(float DeltaTime)
 // stores candidate cover-locations in the cover point octree
 void ACoverPointGenerator::UpdateCoverPointData()
 {
+	// TODO: reset octree
+
 	UWorld* world = GetWorld();
 	
 	// loop over all nav mesh edges
@@ -117,9 +125,10 @@ void ACoverPointGenerator::UpdateCoverPointData()
 
 		TestAndAddInternalPoints(world, outLeftSide, outRightSide, obstacleCheckHit.Normal, hasLeftSidePoint, hasRightSidePoint);
 	}
+
 }
 
-void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint) const
+void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint)
 {
 	// edge between the two side cover points
 	FVector internalEdge = (leftPoint - rightPoint);
@@ -146,7 +155,7 @@ void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector
 	{
 		numInternalPoints--;
 	}
-
+	
 	// check and generate internal points
 	for (int idx = 0; idx < numInternalPoints; idx++)
 	{
@@ -154,9 +163,10 @@ void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector
 
 		if (ProvidesCover(world, pointLocation, obstNormal) && CanLeanOver(world, pointLocation, obstNormal))
 		{
-			UCoverPoint* cp = NewObject<UCoverPoint>(UCoverPoint::StaticClass());
+			UCoverPoint* cp = NewObject<UCoverPoint>();
 			cp->Init(pointLocation, -obstNormal, FVector(0, 0, 1), false);
 			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
+			_coverPointBuffer.Emplace(cp);
 
 			DrawDebugLine(world, FVector(pointLocation), FVector(pointLocation + obstNormal * 150.0f), FColor::Magenta, true);
 		}
@@ -192,7 +202,7 @@ bool ACoverPointGenerator::AreaAlreadyHasCoverPoint(const FVector& position) con
 	FBox bbox(position, position);
 
 	// example code how to query octree
-	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints.Get(), bbox); it.HasPendingElements(); it.Advance())
+	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints, bbox); it.HasPendingElements(); it.Advance())
 	{
 		if ((it.GetCurrentElement()._coverPoint->_location - position).Size() < 10.0f)
 		{
@@ -246,7 +256,7 @@ void ACoverPointGenerator::ProjectNavPointsToGround(UWorld* world, FVector& p1, 
 	if (projectHit.bBlockingHit) p2 = projectHit.Location;
 }
 
-void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand) const
+void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand)
 {
 	// TODO: 
 	// (1) extend so that crouch- and stand height are taken into account
@@ -287,6 +297,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 			UCoverPoint* cp = NewObject<UCoverPoint>(UCoverPoint::StaticClass());
 			cp->Init(leftSideCoverPoint, -obstNormal, rightToNormal, canStand);
 			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
+			_coverPointBuffer.Emplace(cp);
 
 			DrawDebugLine(world, FVector(leftSideCoverPoint), FVector(leftSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
 
@@ -299,6 +310,7 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 			UCoverPoint* cp = NewObject<UCoverPoint>(UCoverPoint::StaticClass());
 			cp->Init(rightSideCoverPoint, -obstNormal, -rightToNormal, canStand);
 			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
+			_coverPointBuffer.Emplace(cp);
 
 			DrawDebugLine(world, FVector(rightSideCoverPoint), FVector(rightSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
 
@@ -438,7 +450,7 @@ const void ACoverPointGenerator::DrawCoverPointLocations() const
 	float debugSphereExtent = 30.0f;
 	int blub = 0;
 	// loop through octree
-	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints.Get(), _coverPoints->GetRootBounds()); it.HasPendingElements(); it.Advance())
+	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints, _coverPoints->GetRootBounds()); it.HasPendingElements(); it.Advance())
 	{
 		blub++;
 		FCoverPointOctreeElement el = it.GetCurrentElement();
@@ -450,7 +462,7 @@ const void ACoverPointGenerator::DrawCoverPointLocations() const
 		}
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("num points: %d"), blub);
+	//UE_LOG(LogTemp, Warning, TEXT("num points: %d"), blub);
 }
 
 TArray<UCoverPoint*> ACoverPointGenerator::GetCoverPointsWithinExtent(const FVector& position, float extent) const
@@ -460,10 +472,15 @@ TArray<UCoverPoint*> ACoverPointGenerator::GetCoverPointsWithinExtent(const FVec
 	TArray<UCoverPoint*> points;
 
 	// example code how to query octree
-	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints.Get(), bbox); it.HasPendingElements(); it.Advance())
+	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints, bbox); it.HasPendingElements(); it.Advance())
 	{
 		// PROBLEM: points are generated within mesh (unreachable). either set min area size in project settings or post process the navigation mesh...
 		// probably out of scope for this project: just check if point is reachable
+		if (!IsValid(it.GetCurrentElement()._coverPoint))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("nullptr detected in cover points!"));
+			return points;
+		}
 		points.Emplace(it.GetCurrentElement()._coverPoint);
 	}
 
@@ -475,6 +492,27 @@ TArray<UCoverPoint*> ACoverPointGenerator::GetCoverPointsWithinExtent(const FVec
 
 	//DrawDebugBox(GetWorld(), point._location, FVector(100.0f), FColor::Black, false, 20.0f);
 	//DrawDebugLine(GetWorld(), point._location, point._location - point._dirToCover * 150.0f, FColor::Black, false, 20.0f, (uint8)'\000', 5.0f);
-	
+
 	return points;
 }
+
+void ACoverPointGenerator::OnNavigationGenerationFinished(class ANavigationData* NavData)
+{
+	ARecastNavMesh* navMeshData = static_cast<ARecastNavMesh*>(NavData);
+	_navGeo.bGatherNavMeshEdges = true;
+	navMeshData->BeginBatchQuery();
+	navMeshData->GetDebugGeometry(_navGeo);
+	navMeshData->FinishBatchQuery();
+
+	FlushPersistentDebugLines(GetWorld());
+	UpdateCoverPointData();
+	// apply octree optimization
+	_coverPoints->ShrinkElements();
+
+	// draw debug data
+	//DrawNavEdges();
+	DrawCoverPointLocations();
+
+	UE_LOG(LogTemp, Warning, TEXT("Cover Point data updated!"));
+}
+

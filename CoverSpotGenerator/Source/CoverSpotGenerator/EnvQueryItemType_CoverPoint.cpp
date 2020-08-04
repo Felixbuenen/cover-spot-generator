@@ -35,7 +35,6 @@ FString UEnvQueryItemType_CoverPoint::GetDescription(const uint8* RawData) const
 void UEnvQueryItemType_CoverPoint::AddBlackboardFilters(FBlackboardKeySelector& KeySelector, UObject* FilterOwner) const
 {
 	Super::AddBlackboardFilters(KeySelector, FilterOwner);
-	//KeySelector.AddObjectFilter(FilterOwner, GetClass()->GetFName(), AActor::StaticClass());
 }
 
 bool UEnvQueryItemType_CoverPoint::StoreInBlackboard(FBlackboardKeySelector& KeySelector, UBlackboardComponent* Blackboard, const uint8* RawData) const

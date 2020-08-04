@@ -5,6 +5,7 @@
 #include "EnvironmentQuery/Contexts/EnvQueryContext_Querier.h"
 #include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
 #include "EnvQueryItemType_CoverPoint.h"
+#include "EngineUtils.h"
 
 #include "CoverPointGenerator.h"
 
@@ -27,37 +28,40 @@ void UEnvQueryGenerator_CoverPoints::GenerateItems(FEnvQueryInstance& QueryInsta
 	TArray<FVector> ContextLocations;
 	QueryInstance.PrepareContext(GenerateAround, ContextLocations);
 
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACoverPointGenerator::StaticClass(), FoundActors);
-	if (FoundActors.Num() == 0)
+	//TArray<AActor*> FoundActors;
+	TActorIterator<ACoverPointGenerator> it(GetWorld());
+	ACoverPointGenerator* cpg = *it;
+	//UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACoverPointGenerator::StaticClass(), FoundActors);
+
+	if (!IsValid(cpg))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("no generator"));
 		return;
 	}
 
-	ACoverPointGenerator* gen = (ACoverPointGenerator*)FoundActors[0];
-	if (gen == nullptr)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("cannot cast to coverpointgenerator"));
-		return;
-	}
+	//ACoverPointGenerator* gen = (ACoverPointGenerator*)FoundActors[0];
+	//if (gen == nullptr)
+	//{
+	//	UE_LOG(LogTemp, Warning, TEXT("cannot cast to coverpointgenerator"));
+	//	return;
+	//}
 
 
 	for (int32 ContextIndex = 0; ContextIndex < ContextLocations.Num(); ContextIndex++)
 	{
-		TArray<UCoverPoint*> CoverPoints = gen->GetCoverPointsWithinExtent(ContextLocations[ContextIndex], BboxExtent.GetValue());
+		TArray<UCoverPoint*> CoverPoints = cpg->GetCoverPointsWithinExtent(ContextLocations[ContextIndex], BboxExtent.GetValue());
 		QueryInstance.AddItemData<UEnvQueryItemType_CoverPoint>(CoverPoints);
 
-		UE_LOG(LogTemp, Warning, TEXT("coverpoint[0] = %s"), *CoverPoints[0]->_location.ToString());
+		//UE_LOG(LogTemp, Warning, TEXT("coverpoint[0] = %s"), *CoverPoints[0]->_location.ToString());
 	}
 }
 
 FText UEnvQueryGenerator_CoverPoints::GetDescriptionTitle() const
 {
-	return FText::FromString("TEST DESCRIPTION TITLE");
+	return FText::FromString("Cover Spot Generator");
 }
 
 FText UEnvQueryGenerator_CoverPoints::GetDescriptionDetails() const
 {
-	return FText::FromString("TEST DESCRIPTION");
+	return FText::FromString("Cover spots (range defined by bbox) around querier");
 }
