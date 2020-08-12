@@ -29,4 +29,6 @@ class COVERSPOTGENERATOR_API UEnvQueryGenerator_CoverPoints : public UEnvQueryGe
 	virtual void GenerateItems(FEnvQueryInstance& QueryInstance) const override;
 	virtual FText GetDescriptionTitle() const override;
 	virtual FText GetDescriptionDetails() const override;
+
+	int GetNumIntersections(const class UCoverPoint* cp, const AActor* context);
 };

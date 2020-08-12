@@ -30,12 +30,12 @@ void UEnvQueryGenerator_CoverPoints::GenerateItems(FEnvQueryInstance& QueryInsta
 
 	//TArray<AActor*> FoundActors;
 	TActorIterator<ACoverPointGenerator> it(GetWorld());
-	ACoverPointGenerator* cpg = *it;
+	const ACoverPointGenerator* cpg = *it;
 	//UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACoverPointGenerator::StaticClass(), FoundActors);
 
 	if (!IsValid(cpg))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("no generator"));
+		UE_LOG(LogTemp, Warning, TEXT("EQS cover generator: no generator"));
 		return;
 	}
 
