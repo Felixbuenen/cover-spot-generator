@@ -12,6 +12,7 @@
 #include "Editor.h"
 #include "Engine/Engine.h"
 #include "Editor/EditorEngine.h"
+#include "Math/NumericLimits.h"
 
 bool ACoverPointGenerator::ShouldTickIfViewportsOnly() const
 {
@@ -163,12 +164,13 @@ void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector
 
 		if (ProvidesCover(world, pointLocation, obstNormal) && CanLeanOver(world, pointLocation, obstNormal))
 		{
+			bool canStand = false; // if agent can lean over, standing isn't safe
 			UCoverPoint* cp = NewObject<UCoverPoint>();
-			cp->Init(pointLocation, -obstNormal, FVector(0, 0, 1), false);
+			cp->Init(pointLocation, -obstNormal, FVector(0, 0, 1), canStand);
 			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
 			_coverPointBuffer.Emplace(cp);
 
-			DrawDebugLine(world, FVector(pointLocation), FVector(pointLocation + obstNormal * 150.0f), FColor::Magenta, true);
+			//DrawDebugLine(world, FVector(pointLocation), FVector(pointLocation + obstNormal * 150.0f), FColor::Magenta, true);
 		}
 	}
 }
@@ -294,25 +296,37 @@ void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& le
 	{
 		if (!AreaAlreadyHasCoverPoint(leftSideCoverPoint))
 		{
+			FVector leanDirection = rightToNormal;
+			if (!canStand)
+			{
+				leanDirection.Z = CanLeanOver(world, leftSideCoverPoint, obstNormal) ? 1.0f : 0.0f;
+			}
+
 			UCoverPoint* cp = NewObject<UCoverPoint>(UCoverPoint::StaticClass());
-			cp->Init(leftSideCoverPoint, -obstNormal, rightToNormal, canStand);
+			cp->Init(leftSideCoverPoint, -obstNormal, leanDirection, canStand);
 			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
 			_coverPointBuffer.Emplace(cp);
 
-			DrawDebugLine(world, FVector(leftSideCoverPoint), FVector(leftSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
+			//DrawDebugLine(world, FVector(leftSideCoverPoint), FVector(leftSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
 
-			outLeftSide = leftSideCoverPoint;		}
+			outLeftSide = leftSideCoverPoint;		
+		}
 	}
 	if (GetSideCoverPoint(world, rightVertex, -rightToNormal, obstNormal, -edgeDir, rightSideCoverPoint))
 	{
 		if (!AreaAlreadyHasCoverPoint(rightSideCoverPoint))
 		{
+			FVector leanDirection = -rightToNormal;
+			if (!canStand)
+			{
+				leanDirection.Z = CanLeanOver(world, rightSideCoverPoint, obstNormal) ? 1.0f : 0.0f;
+			}
 			UCoverPoint* cp = NewObject<UCoverPoint>(UCoverPoint::StaticClass());
-			cp->Init(rightSideCoverPoint, -obstNormal, -rightToNormal, canStand);
+			cp->Init(rightSideCoverPoint, -obstNormal, leanDirection, canStand);
 			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
 			_coverPointBuffer.Emplace(cp);
 
-			DrawDebugLine(world, FVector(rightSideCoverPoint), FVector(rightSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
+			//DrawDebugLine(world, FVector(rightSideCoverPoint), FVector(rightSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
 
 			outRightSide = rightSideCoverPoint;
 		}
@@ -448,17 +462,20 @@ const void ACoverPointGenerator::DrawCoverPointLocations() const
 	}
 
 	float debugSphereExtent = 30.0f;
-	int blub = 0;
 	// loop through octree
 	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints, _coverPoints->GetRootBounds()); it.HasPendingElements(); it.Advance())
 	{
-		blub++;
 		FCoverPointOctreeElement el = it.GetCurrentElement();
 		UCoverPoint* cp = el._coverPoint;
 		
 		if (cp != nullptr)
 		{
 			DrawDebugSphere(world, cp->_location, debugSphereExtent, 7, FColor::Cyan, true);
+
+			// draw face away
+			//DrawDebugLine(world, cp->_location * FVector(1,1,0) + FVector(0,0,150), cp->_location + cp->_dirToCover * -150.0f + FVector(0, 0, 150.0f), FColor::Black, true);
+			//DrawDebugLine(world, cp->_location * FVector(1, 1, 0) + FVector(0, 0, 150), cp->_location + cp->_leanDirection * 150.0f * FVector(1, 1, 0) + FVector(0, 0, 150.0f), FColor::Black, true);
+
 		}
 	}
 
@@ -495,6 +512,96 @@ TArray<UCoverPoint*> ACoverPointGenerator::GetCoverPointsWithinExtent(const FVec
 
 	return points;
 }
+
+int ACoverPointGenerator::GetNumberOfIntersectionsFromCover(const UCoverPoint* cp, const FVector& targetLocation) const
+{
+	const int infinite = TNumericLimits<int>::Max();
+	const float epsilon = 0.00001f;
+	const float enemyCrouchHeight = 80.0f;
+	const FVector& leanDir = cp->_leanDirection;
+
+	int numHitsSide, numHitsOver = infinite; 
+	FVector2D leanDir2D = FVector2D(leanDir) * _sideLeanOffset;
+
+	bool canLeanOver = std::abs(leanDir.Z) > epsilon;
+	bool canLeanSide = leanDir2D.SizeSquared() > epsilon;
+
+	UWorld* world = GetWorld();
+	if (!IsValid(world)) return infinite;
+
+	// check if agent can lean over this cover point
+	if (canLeanOver)
+	{
+		FVector traceStart = cp->_location;
+		traceStart.Z += _standAttackHeight;
+
+		FVector traceEnd = targetLocation;
+		traceEnd.Z += enemyCrouchHeight;
+
+		TArray<FHitResult> outHits;
+		UKismetSystemLibrary::LineTraceMulti(world, traceStart, traceEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHits, true);
+		//DrawDebugLine(world, traceStart, traceEnd, FColor::Green, false, 1.0f);
+		//DrawDebugLine(world, cp->_location, traceStart, FColor::Green, false, 2.0f);
+
+		numHitsOver = outHits.Num();
+	}
+
+	// check if agent can lean to the side of this cover point
+	if (canLeanSide)
+	{
+		FVector traceStart = cp->_location;
+		traceStart.Z += _crouchAttackHeight;
+		traceStart.X += leanDir2D.X;
+		traceStart.Y += leanDir2D.Y;
+
+		FVector traceEnd = targetLocation;
+		traceEnd.Z += enemyCrouchHeight;
+
+		TArray<FHitResult> outHits;
+		UKismetSystemLibrary::LineTraceMulti(world, traceStart, traceEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHits, true);
+		
+		//DrawDebugLine(world, cp->_location, traceStart, FColor::Blue, false, 2.0f);
+		//DrawDebugLine(world, traceStart, traceEnd, FColor::Blue, false, 1.0f);
+
+		numHitsSide = outHits.Num();
+	}
+
+	// optionally: check if can hit with lean-over AND lean-side.
+
+	int numHits;
+	// prefer some cover over no cover
+	//if (numHitsSide == 0 && numHitsOver > 0) numHits = numHitsOver;
+	//else if(numHitsOver == 0 && numHitsSide > 0) numHits = numHitsSide;
+	//else numHits = FMath::Min(numHitsSide, numHitsOver);
+	numHits = FMath::Min(numHitsSide, numHitsOver);
+	FColor color;
+	if (numHits == 0)
+		color = FColor::Green;
+	else if (numHits == 1)
+		color = FColor::Yellow;
+	else if (numHits == 2)
+		color = FColor::Orange;
+	else if (numHits == 3)
+		color = FColor::Red;
+	else
+		color = FColor::Cyan;
+	//DrawDebugSphere(world, cp->_location, 50.0f, 12, color, false, 1.0f);
+
+	return numHits;
+}
+
+bool ACoverPointGenerator::CanAttackFromCover(const UCoverPoint* cp, const FVector& targetLocation) const
+{
+	const float epsilon = 0.0001;
+
+	const FVector& leanDir = cp->_leanDirection;
+	FVector2D leanDir2D = FVector2D(leanDir) * _sideLeanOffset;
+	bool canLeanOver = std::abs(leanDir.Z) < epsilon;
+	bool canLeanSide = leanDir2D.SizeSquared() < epsilon;
+
+	return true;
+}
+
 
 void ACoverPointGenerator::OnNavigationGenerationFinished(class ANavigationData* NavData)
 {

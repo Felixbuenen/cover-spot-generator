@@ -33,7 +33,13 @@ public:
 	float _minStandCoverHeight = 180.0f; // minimum height of an obstacle for it to be considered to be a standing-cover position
 
 	UPROPERTY()
-	float _maxAttackOverEdgeHeight = 120.0f; // if higher than this, an agent cannot lean over the edge of the obstacle and needs to lean out to the left or right of the obstacle
+	float _maxAttackOverEdgeHeight = 140.0f; // if higher than this, the wall is too high to perform a standing attack
+
+	UPROPERTY()
+	float _standAttackHeight = 150.0f; // physical height at which the agent shoots while standing
+
+	UPROPERTY()
+	float _crouchAttackHeight = 100.0f; // physical height at which the agent shoots while crouched
 
 	UPROPERTY()
 	float _sideLeanOffset = 50.0f;
@@ -94,4 +100,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	TArray<UCoverPoint*> GetCoverPointsWithinExtent(const FVector& position, float extent) const;
+
+	int GetNumberOfIntersectionsFromCover(const UCoverPoint* cp, const FVector& targetLocation) const;
+	bool CanAttackFromCover(const UCoverPoint* cp, const FVector& targetLocation) const;
 };

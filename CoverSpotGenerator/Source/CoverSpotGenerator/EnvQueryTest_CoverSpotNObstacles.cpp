@@ -10,6 +10,7 @@
 UEnvQueryTest_CoverSpotNObstacles::UEnvQueryTest_CoverSpotNObstacles(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	ValidItemType = UEnvQueryItemType_CoverPoint::StaticClass();
+	ScoringFactor.DefaultValue = -1.0;
 }
 
 void UEnvQueryTest_CoverSpotNObstacles::RunTest(FEnvQueryInstance& QueryInstance) const
@@ -53,9 +54,7 @@ void UEnvQueryTest_CoverSpotNObstacles::RunTest(FEnvQueryInstance& QueryInstance
 	
 		for (int32 ContextIndex = 0; ContextIndex < ContextLocations.Num(); ContextIndex++)
 		{
-			float score = (cp->_location - ContextLocations[ContextIndex]).Size();
-			score += UAISystem::GetRandomStream().FRand() * 1000.f;
-
+			float score = (float)(cpg->GetNumberOfIntersectionsFromCover(cp, ContextLocations[ContextIndex]));
 			It.SetScore(TestPurpose, FilterType, score, MinFilterThresholdValue, MaxFilterThresholdValue);
 		}
 	}
@@ -63,10 +62,11 @@ void UEnvQueryTest_CoverSpotNObstacles::RunTest(FEnvQueryInstance& QueryInstance
 
 FText UEnvQueryTest_CoverSpotNObstacles::GetDescriptionTitle() const
 {
-	return FText();
+	return FText::FromString("Number of obstacles");
 }
 
 FText UEnvQueryTest_CoverSpotNObstacles::GetDescriptionDetails() const
 {
-	return FText();
+	return FText::FromString(FString::Printf(TEXT("Number of obstacles between querier and %s."), 
+		*UEnvQueryTypes::DescribeContext(Context).ToString()));
 }
