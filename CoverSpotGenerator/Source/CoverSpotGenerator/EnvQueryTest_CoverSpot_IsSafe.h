@@ -5,7 +5,11 @@
 #include "CoreMinimal.h"
 #include "EnvironmentQuery/EnvQueryTest.h"
 #include "DataProviders/AIDataProvider.h"
+
 #include "EnvQueryTest_CoverSpot_IsSafe.generated.h"
+
+class UCoverPoint;
+class ACoverPointGenerator;
 
 UCLASS()
 class COVERSPOTGENERATOR_API UEnvQueryTest_CoverSpot_IsSafe : public UEnvQueryTest
@@ -37,5 +41,5 @@ class COVERSPOTGENERATOR_API UEnvQueryTest_CoverSpot_IsSafe : public UEnvQueryTe
 	virtual FText GetDescriptionDetails() const override;
 
 protected:
-	bool CoverProvidesSafety(UWorld* world, const AActor* context, const class UCoverPoint* coverPoint, const class ACoverPointGenerator* cpg) const;
+	bool CoverProvidesSafety(UWorld* world, const AActor* context, const UCoverPoint* coverPoint, const ACoverPointGenerator* cpg) const;
 };
