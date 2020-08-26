@@ -3,8 +3,8 @@
 #pragma once
 
 #include "GenericOctree.h"
-
 #include "CoreMinimal.h"
+
 #include "CoverDataStructures.generated.h"
 
 UCLASS(BlueprintType, Blueprintable)
@@ -26,10 +26,7 @@ public:
 		bool _canStand;
 
 	UCoverPoint() = default;
-	~UCoverPoint() 
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("Deleted"));
-	}
+	~UCoverPoint() { }
 
 	FORCEINLINE void Init(FVector location, FVector dirToCover, FVector leanDir, bool canStand)
 	{
@@ -49,10 +46,7 @@ struct FCoverPointOctreeElement
 		_bbox.Extent = FVector(extent);
 	}
 
-	~FCoverPointOctreeElement()
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("TREE ELEMENT GOT DELETED"));
-	}
+	~FCoverPointOctreeElement(){ }
 	
 	UCoverPoint* _coverPoint;
 

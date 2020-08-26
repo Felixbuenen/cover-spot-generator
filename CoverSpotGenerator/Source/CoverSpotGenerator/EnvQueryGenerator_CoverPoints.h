@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "EnvironmentQuery/Generators/EnvQueryGenerator_ProjectedPoints.h"
-
 #include "DataProviders/AIDataProvider.h"
 
 #include "EnvQueryGenerator_CoverPoints.generated.h"
@@ -29,6 +28,4 @@ class COVERSPOTGENERATOR_API UEnvQueryGenerator_CoverPoints : public UEnvQueryGe
 	virtual void GenerateItems(FEnvQueryInstance& QueryInstance) const override;
 	virtual FText GetDescriptionTitle() const override;
 	virtual FText GetDescriptionDetails() const override;
-
-	int GetNumIntersections(const class UCoverPoint* cp, const AActor* context);
 };

@@ -2,12 +2,12 @@
 
 
 #include "EnvQueryGenerator_CoverPoints.h"
-#include "EnvironmentQuery/Contexts/EnvQueryContext_Querier.h"
-#include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
-#include "EnvQueryItemType_CoverPoint.h"
-#include "EngineUtils.h"
 
 #include "CoverPointGenerator.h"
+#include "EnvQueryItemType_CoverPoint.h"
+
+#include "EnvironmentQuery/Contexts/EnvQueryContext_Querier.h"
+#include "EngineUtils.h"
 
 UEnvQueryGenerator_CoverPoints::UEnvQueryGenerator_CoverPoints(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -28,31 +28,21 @@ void UEnvQueryGenerator_CoverPoints::GenerateItems(FEnvQueryInstance& QueryInsta
 	TArray<FVector> ContextLocations;
 	QueryInstance.PrepareContext(GenerateAround, ContextLocations);
 
-	//TArray<AActor*> FoundActors;
+	// get the cover point generator
+	// TODO: make a static getter
 	TActorIterator<ACoverPointGenerator> it(GetWorld());
 	const ACoverPointGenerator* cpg = *it;
-	//UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACoverPointGenerator::StaticClass(), FoundActors);
 
 	if (!IsValid(cpg))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("EQS cover generator: no generator"));
+		UE_LOG(LogTemp, Error, TEXT("EQS cover generator: no generator found. Make sure there is a CoverSpotGenerator in the scene."));
 		return;
 	}
-
-	//ACoverPointGenerator* gen = (ACoverPointGenerator*)FoundActors[0];
-	//if (gen == nullptr)
-	//{
-	//	UE_LOG(LogTemp, Warning, TEXT("cannot cast to coverpointgenerator"));
-	//	return;
-	//}
-
 
 	for (int32 ContextIndex = 0; ContextIndex < ContextLocations.Num(); ContextIndex++)
 	{
 		TArray<UCoverPoint*> CoverPoints = cpg->GetCoverPointsWithinExtent(ContextLocations[ContextIndex], BboxExtent.GetValue());
 		QueryInstance.AddItemData<UEnvQueryItemType_CoverPoint>(CoverPoints);
-
-		//UE_LOG(LogTemp, Warning, TEXT("coverpoint[0] = %s"), *CoverPoints[0]->_location.ToString());
 	}
 }
 

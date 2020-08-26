@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "EnvironmentQuery/EnvQueryTest.h"
+
 #include "EnvQueryTest_CoverSpotNObstacles.generated.h"
 
 UCLASS()

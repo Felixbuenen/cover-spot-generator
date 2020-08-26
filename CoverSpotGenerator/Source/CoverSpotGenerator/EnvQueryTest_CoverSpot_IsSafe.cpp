@@ -99,6 +99,7 @@ bool UEnvQueryTest_CoverSpot_IsSafe::CoverProvidesSafety(UWorld* world, const AA
 		DrawDebugSphere(world, traceStart, 30.0f, 12, FColor::Emerald, false, 1.0f);
 	}
 
+	// check if the enemy can attack agent from above at this cover position
 	bool isSafeFromAbove = true;
 	if (coverPoint->_leanDirection.Z > 0.0f)
 	{

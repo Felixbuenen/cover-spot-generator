@@ -2,15 +2,16 @@
 
 #include "EnvQueryTest_CoverSpotNObstacles.h"
 
-#include "EngineUtils.h"
-#include "CoverPointGenerator.h"
 #include "EnvQueryItemType_CoverPoint.h"
+#include "CoverPointGenerator.h"
+
+#include "EngineUtils.h"
 #include "AISystem.h"
 
 UEnvQueryTest_CoverSpotNObstacles::UEnvQueryTest_CoverSpotNObstacles(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	ValidItemType = UEnvQueryItemType_CoverPoint::StaticClass();
-	ScoringFactor.DefaultValue = -1.0;
+	ScoringFactor.DefaultValue = -1.0; // by default, prefer less obstacles between querier and target
 }
 
 void UEnvQueryTest_CoverSpotNObstacles::RunTest(FEnvQueryInstance& QueryInstance) const
@@ -38,7 +39,7 @@ void UEnvQueryTest_CoverSpotNObstacles::RunTest(FEnvQueryInstance& QueryInstance
 	
 	if (!IsValid(cpg))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("EQS cover test: no generator"));
+		UE_LOG(LogTemp, Warning, TEXT("EQS cover test: no generator found. Make sure there is a CoverSpotGenerator in the scene."));
 		return;
 	}
 	
@@ -46,16 +47,13 @@ void UEnvQueryTest_CoverSpotNObstacles::RunTest(FEnvQueryInstance& QueryInstance
 	{
 		const UCoverPoint* cp = UEnvQueryItemType_CoverPoint::GetValue(It.GetItemData());
 		
-		if (!IsValid(cp))
+		if (IsValid(cp))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("invalid cp"));
-			continue;
-		}
-	
-		for (int32 ContextIndex = 0; ContextIndex < ContextLocations.Num(); ContextIndex++)
-		{
-			float score = (float)(cpg->GetNumberOfIntersectionsFromCover(cp, ContextLocations[ContextIndex]));
-			It.SetScore(TestPurpose, FilterType, score, MinFilterThresholdValue, MaxFilterThresholdValue);
+			for (int32 ContextIndex = 0; ContextIndex < ContextLocations.Num(); ContextIndex++)
+			{
+				float score = (float)(cpg->GetNumberOfIntersectionsFromCover(cp, ContextLocations[ContextIndex]));
+				It.SetScore(TestPurpose, FilterType, score, MinFilterThresholdValue, MaxFilterThresholdValue);
+			}
 		}
 	}
 }

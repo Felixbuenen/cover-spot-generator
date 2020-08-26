@@ -4,8 +4,8 @@
 
 #include "CoverDataStructures.h"
 #include "CoverPointGenerator.h"
-
 #include "EnvQueryItemType_CoverPoint.h"
+
 #include "EngineUtils.h"
 
 UEnvQueryTest_CoverSpot_LooksAt::UEnvQueryTest_CoverSpot_LooksAt(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -46,7 +46,7 @@ void UEnvQueryTest_CoverSpot_LooksAt::RunTest(FEnvQueryInstance& QueryInstance) 
 	const ACoverPointGenerator* cpg = *it;
 	if (!IsValid(cpg))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("EQS cover test: no generator"));
+		UE_LOG(LogTemp, Warning, TEXT("EQS cover test: no generator found. Make sure there is a CoverSpotGenerator in the scene."));
 		return;
 	}
 
@@ -54,27 +54,26 @@ void UEnvQueryTest_CoverSpot_LooksAt::RunTest(FEnvQueryInstance& QueryInstance) 
 	{
 		const UCoverPoint* cp = UEnvQueryItemType_CoverPoint::GetValue(It.GetItemData());
 
-		if (!IsValid(cp))
+		if (IsValid(cp))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("invalid cover point"));
-			continue;
-		}
-
-		for (int32 ContextIndex = 0; ContextIndex < ContextLocations.Num(); ContextIndex++)
-		{
-			It.SetScore(TestPurpose, FilterType, ScoreViewingAngle(cp, ContextLocations[ContextIndex]), FloatValueMin.GetValue(), FloatValueMax.GetValue());
+			for (int32 ContextIndex = 0; ContextIndex < ContextLocations.Num(); ContextIndex++)
+			{
+				It.SetScore(TestPurpose, FilterType, ScoreViewingAngle(cp, ContextLocations[ContextIndex]), FloatValueMin.GetValue(), FloatValueMax.GetValue());
+			}
 		}
 	}
 }
 
 float UEnvQueryTest_CoverSpot_LooksAt::ScoreViewingAngle(const UCoverPoint* cp, const FVector& targetLocation) const
 {
+	// calculate viewing angle, which is the angle between the cover point view direction and the target location
 	FVector dirToTarget = targetLocation - cp->_location;
 	dirToTarget.Normalize();
 	float angle = FMath::Acos(FVector::DotProduct(cp->_dirToCover, dirToTarget));
 	angle = FMath::RadiansToDegrees(angle);
 	angle -= MaxScoreViewingAngle.GetValue();
 	
+	// scale the value such that it fits within the min- and max score viewing angle parameters
 	float viewRange = MinScoreViewingAngle.GetValue() - MaxScoreViewingAngle.GetValue();
 	angle = FMath::Clamp((angle / viewRange), 0.0f, 1.0f);
 

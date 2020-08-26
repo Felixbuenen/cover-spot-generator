@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "EnvironmentQuery/EnvQueryTest.h"
+
 #include "EnvQueryTest_CoverSpot_LooksAt.generated.h"
 
 class UCoverPoint;
