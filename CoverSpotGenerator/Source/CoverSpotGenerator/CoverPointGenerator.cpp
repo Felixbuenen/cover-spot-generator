@@ -6,18 +6,13 @@
 #include <vector>
 #include <utility>
 
+#include "NavigationSystem.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/LevelBounds.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "Editor.h"
 #include "Engine/Engine.h"
-#include "Editor/EditorEngine.h"
-#include "Math/NumericLimits.h"
 
-bool ACoverPointGenerator::ShouldTickIfViewportsOnly() const
-{
-	return false;
-}
+#define EPSILON 0.00001
 
 // Sets default values
 ACoverPointGenerator::ACoverPointGenerator()
@@ -27,6 +22,19 @@ ACoverPointGenerator::ACoverPointGenerator()
 	
 	// init octree
 	_coverPoints = MakeUnique<TCoverPointOctree>(FVector::ZeroVector, _maxBboxExtent);
+}
+
+
+/*
+---------- Management ------------
+*/
+
+// Called when the game starts or when spawned
+void ACoverPointGenerator::BeginPlay()
+{
+	Super::BeginPlay();
+
+	Initialize();
 }
 
 void ACoverPointGenerator::Initialize()
@@ -61,36 +69,16 @@ void ACoverPointGenerator::Initialize()
 	// apply octree optimization
 	_coverPoints->ShrinkElements();
 
-	// draw debug data
-	//DrawNavEdges();
-	DrawCoverPointLocations();
+	DrawDebugData();
 
 	// bind nav mesh creation event
 	if (UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetCurrent(world))
 		NavSystem->OnNavigationGenerationFinishedDelegate.AddDynamic(this, &ACoverPointGenerator::OnNavigationGenerationFinished);
 }
 
-
-// Called when the game starts or when spawned
-void ACoverPointGenerator::BeginPlay()
-{
-	Super::BeginPlay();
-
-	Initialize();
-}
-
-
-// Called every frame
-void ACoverPointGenerator::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-}
-
-// stores candidate cover-locations in the cover point octree
 void ACoverPointGenerator::UpdateCoverPointData()
 {
-	// TODO: reset octree
+	ResetCoverPointData();
 
 	UWorld* world = GetWorld();
 	
@@ -115,7 +103,7 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		bool isStandingCover = CanStand(world, v1 + edgeDir * edgeLength * 0.5f, obstacleCheckHit.Normal);
 
 		FVector outLeftSide, outRightSide;
-		TestAndAddSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.ImpactNormal, outLeftSide, outRightSide, isStandingCover);
+		GenerateSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.ImpactNormal, outLeftSide, outRightSide, isStandingCover);
 
 		if (isStandingCover) continue;
 
@@ -124,14 +112,28 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		bool hasLeftSidePoint = !outLeftSide.Equals(v2);
 		bool hasRightSidePoint = !outRightSide.Equals(v1);
 
-		TestAndAddInternalPoints(world, outLeftSide, outRightSide, obstacleCheckHit.Normal, hasLeftSidePoint, hasRightSidePoint);
+		GenerateInternalPoints(world, outLeftSide, outRightSide, obstacleCheckHit.Normal, hasLeftSidePoint, hasRightSidePoint);
 	}
 
 }
 
-void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint)
+void ACoverPointGenerator::ResetCoverPointData()
 {
-	// edge between the two side cover points
+	_coverPointBuffer.Empty();
+	_coverPoints->Destroy();
+
+	// re-init octree
+	_coverPoints = MakeUnique<TCoverPointOctree>(FVector::ZeroVector, _maxBboxExtent);
+}
+
+
+/*
+---------- Generation ------------
+*/
+
+void ACoverPointGenerator::GenerateInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint)
+{
+	// get the edge between the two side cover points
 	FVector internalEdge = (leftPoint - rightPoint);
 	float internalEdgeLength = internalEdge.Size();
 	internalEdge /= internalEdgeLength;
@@ -148,6 +150,7 @@ void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector
 	// check if we should place a cover spot on right end point of nav edge
 	if (hasRightSidePoint || AreaAlreadyHasCoverPoint(startLoc))
 	{
+		// move the starting position further along the internal edge and decrease the total number of internal points
 		startLoc += internalEdge * coverPointInterval;
 		numInternalPoints--;
 	}
@@ -157,32 +160,179 @@ void ACoverPointGenerator::TestAndAddInternalPoints(UWorld* world, const FVector
 		numInternalPoints--;
 	}
 	
-	// check and generate internal points
+	// generate internal points
 	for (int idx = 0; idx < numInternalPoints; idx++)
 	{
 		FVector pointLocation = startLoc + idx * internalEdge * coverPointInterval;
 
+		// an internal point can only be useful if one can lean over it (internal points are not at the sides of obstacles)
 		if (ProvidesCover(world, pointLocation, obstNormal) && CanLeanOver(world, pointLocation, obstNormal))
 		{
 			bool canStand = false; // if agent can lean over, standing isn't safe
-			UCoverPoint* cp = NewObject<UCoverPoint>();
-			cp->Init(pointLocation, -obstNormal, FVector(0, 0, 1), canStand);
-			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
-			_coverPointBuffer.Emplace(cp);
+			FVector dirToCover = -obstNormal;
+			FVector leanDir = FVector::UpVector;
 
-			//DrawDebugLine(world, FVector(pointLocation), FVector(pointLocation + obstNormal * 150.0f), FColor::Magenta, true);
+			StoreNewCoverPoint(pointLocation, dirToCover, leanDir, canStand);
 		}
 	}
 }
+
+void ACoverPointGenerator::GenerateSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand)
+{
+	outLeftSide = leftVertex;
+	outRightSide = rightVertex;
+
+	FVector rightToNormal = FVector::CrossProduct(FVector::UpVector, obstNormal);
+
+	//FVector rightVec = FVector::CrossProduct(FVector::UpVector, edgeDir);
+	// TODO: check whether or not this code is not necessary (GetSideCoverPoint already has such a check, this early out may be unnecessary)
+	//{
+	//	FHitResult rightCheck, leftCheck;
+	//	FVector initRightStart = rightVertex;
+	//	initRightStart.Z += 20.0f;
+	//	FVector initRightStop = initRightStart + rightVec * _obstacleCheckDistance;
+	//	UKismetSystemLibrary::LineTraceSingle(world, initRightStart, initRightStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, rightCheck, false);
+	//	FVector initLeftStart = rightVertex;
+	//	initLeftStart.Z += 20.0f;
+	//	FVector initLeftStop = initLeftStart + rightVec * _obstacleCheckDistance;
+	//	UKismetSystemLibrary::LineTraceSingle(world, initLeftStart, initLeftStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, leftCheck, false);
+	//
+	//	bool leftSideObstacleHit = leftCheck.bBlockingHit;
+	//	bool rightSideObstacleHit = rightCheck.bBlockingHit;
+	//	bool sidesBelongToSameObstacle = FVector::DotProduct(leftCheck.ImpactNormal, rightCheck.ImpactNormal) > 0.8f;
+	//	if (leftSideObstacleHit && rightSideObstacleHit && !sidesBelongToSameObstacle)
+	//	{
+	//		return;
+	//	}
+	//}
+
+	auto storeSidePoint = [&](const FVector& location, const FVector& dirToCover, FVector leanDirection, FVector& outSidePoint)
+	{
+		if (!AreaAlreadyHasCoverPoint(location))
+		{
+			if (!canStand)
+			{
+				leanDirection.Z = CanLeanOver(world, location, obstNormal) ? 1.0f : 0.0f;
+			}
+
+			StoreNewCoverPoint(location, dirToCover, leanDirection, canStand);
+			outSidePoint = location;
+		}
+	};
+	
+	// check if there is a cover point at the left side and store it
+	FVector leftSideCoverPoint;
+	bool hasLeftSidePoint = GetSideCoverPoint(world, leftVertex, rightToNormal, obstNormal, edgeDir, leftSideCoverPoint);
+	if (hasLeftSidePoint) storeSidePoint(leftSideCoverPoint, -obstNormal, rightToNormal, outLeftSide);
+
+	// check if there is a cover point at the right side and store it
+	FVector rightSideCoverPoint;
+	bool hasRightSidePoint = GetSideCoverPoint(world, rightVertex, -rightToNormal, obstNormal, -edgeDir, rightSideCoverPoint);
+	if (hasRightSidePoint) storeSidePoint(rightSideCoverPoint, -obstNormal, -rightToNormal, outRightSide);
+}
+
+// The navigation mesh is not perfect. Therefore, we cannot assume that nav-mesh edges perfectly represent obstacle information. This method performs a sweep test 
+//  along the obstacle to find the side of an obstacle.
+bool ACoverPointGenerator::GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const
+{
+	const float vertOffset = 20.0f;
+
+	// decide whether we should search along the left or right to find a cover spot
+	FVector startPoint = navVert;
+	startPoint.Z += vertOffset;
+	FVector projectEnd = startPoint + -obstNormal * _obstacleCheckDistance;
+	
+	FHitResult projectHit;
+	PerformLineTrace(world, startPoint, projectEnd, projectHit);
+
+	// Lambda that performs the sweep test to find the edge of an obstacle (and thus side cover point).
+	// If sweeping in lean direction: currently not in front of obstacle, stop with the first line trace that intersects the obstacle.
+	// If sweeping in opposite lean direction: currently in front of obstacle, stop wtih the first line trace that does not intersect the obstacle, store last intersection.
+	bool foundEndPoint = false;
+	auto findEdgePoint = [&](bool sweepInLeanDir) -> FVector
+	{
+		FVector _sidePoint;
+		FHitResult sideHitCheck;
+
+		FVector edgeDirection = sweepInLeanDir ? edgeDir : -edgeDir;
+		float lastDistance = projectHit.Distance;
+
+		for (int i = 0; i < _numObstacleSideChecks; i++)
+		{
+			FVector start = startPoint + (i + 1) * edgeDirection * _obstacleSideCheckInterval;
+			FVector stop = start + -obstNormal * _obstacleCheckDistance;
+
+			PerformLineTrace(world, start, stop, sideHitCheck);
+			bool foundEdge = sweepInLeanDir != sideHitCheck.bBlockingHit;
+			if (foundEdge)
+			{
+				// edge found: offset the resulting point from the obstacle such that there is a clearance of _agentRadius
+				float distToObstacle = sweepInLeanDir ? lastDistance : sideHitCheck.Distance;
+				float offsetFromObstacle = distToObstacle - _agentRadius;
+				float leanOffset = sweepInLeanDir ? _agentRadius + _obstacleSideCheckInterval : _agentRadius;
+
+				_sidePoint = start - leanDirection * leanOffset + -obstNormal * offsetFromObstacle;
+				foundEndPoint = true;
+				break;
+			}
+
+			lastDistance = sideHitCheck.Distance;
+		}
+
+		return _sidePoint;
+	};
+
+	// Find side cover point: sweep direction depends on whether we're already in front of the obstacle or not.
+	bool sweepInEdgeDirection = projectHit.bBlockingHit;
+	FVector sidePoint = findEdgePoint(sweepInEdgeDirection);
+
+	// make sure resulting side cover point is valid (may not be true due to nav-mesh imperfections)
+	if (foundEndPoint)
+	{
+		FVector visionFromSideCheckStart = sidePoint + leanDirection * (_sideLeanOffset + _agentRadius);
+		FVector visionFromSideCheckStop = visionFromSideCheckStart + -obstNormal * _obstacleCheckDistance;
+
+		FHitResult visionFromSideCheck;
+		PerformLineTrace(world, visionFromSideCheckStart, visionFromSideCheckStop, visionFromSideCheck);
+
+		if (!visionFromSideCheck.bBlockingHit)
+		{
+			// vision not blocked from side: valid side cover point
+			sidePoint.Z -= vertOffset;
+			outSideCoverPoint = sidePoint;
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+/*
+---------- Tests ------------
+*/
 
 bool ACoverPointGenerator::ProvidesCover(UWorld* world, const FVector& coverLocation, const FVector& coverFaceNormal) const
 {
 	FVector checkStart = coverLocation;
 	checkStart.Z += _minCrouchCoverHeight;
 	FVector checkStop = checkStart + -coverFaceNormal * _obstacleCheckDistance;
+	
 	FHitResult outHit;
+	PerformLineTrace(world, checkStart, checkStop, outHit);
 
-	UKismetSystemLibrary::LineTraceSingle(world, checkStart, checkStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHit, true);
+	return outHit.bBlockingHit;
+}
+
+bool ACoverPointGenerator::CanStand(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const
+{
+	FVector checkStart = coverLocation;
+	checkStart.Z += _minStandCoverHeight;
+	FVector checkStop = checkStart + -coverFaceNormal * _obstacleCheckDistance;
+
+	FHitResult outHit;
+	PerformLineTrace(world, checkStart, checkStop, outHit);
 
 	return outHit.bBlockingHit;
 }
@@ -192,11 +342,24 @@ bool ACoverPointGenerator::CanLeanOver(UWorld* world, const FVector& coverLocati
 	FVector checkStart = coverLocation;
 	checkStart.Z += _maxAttackOverEdgeHeight;
 	FVector checkStop = checkStart + -coverFaceNormal * _obstacleCheckDistance;
-	FHitResult outHit;
 
-	UKismetSystemLibrary::LineTraceSingle(world, checkStart, checkStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHit, true);
+	FHitResult outHit;
+	PerformLineTrace(world, checkStart, checkStop, outHit);
 
 	return !outHit.bBlockingHit;
+}
+
+bool ACoverPointGenerator::CanLeanOver(const UCoverPoint* cp) const
+{
+	const float epsilon = 0.0001;
+	return (cp->_leanDirection.Z > epsilon);
+}
+
+bool ACoverPointGenerator::CanLeanSide(const UCoverPoint* cp) const
+{
+	const float epsilon = 0.0001f;
+	FVector2D leanDir2D = FVector2D(cp->_leanDirection);
+	return (leanDir2D.SizeSquared() > epsilon);
 }
 
 bool ACoverPointGenerator::AreaAlreadyHasCoverPoint(const FVector& position) const
@@ -223,234 +386,33 @@ bool ACoverPointGenerator::GetObstacleFaceNormal(UWorld* world, const FVector& e
 	checkStart.Z += 20.0f;
 	FVector checkStop = checkStart + rightVec * _obstacleCheckDistance;
 
-	UKismetSystemLibrary::LineTraceSingle(world, checkStart, checkStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHit, true);
-
-	//DrawDebugLine(world, outHit.Location, outHit.Location + outHit.Normal * 50.0f, FColor::Yellow, true);
+	PerformLineTrace(world, checkStart, checkStop, outHit);
 
 	return outHit.bBlockingHit;
 }
 
-bool ACoverPointGenerator::CanStand(UWorld* world, FVector coverLocation, FVector coverFaceNormal) const
-{
-	FVector checkStart = coverLocation;
-	checkStart.Z += _minStandCoverHeight;
-	FVector checkStop = checkStart + -coverFaceNormal * _obstacleCheckDistance;
 
-	FHitResult outHit;
-	UKismetSystemLibrary::LineTraceSingle(world, checkStart, checkStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHit, true);
-
-	return outHit.bBlockingHit;
-}
+/*
+---------- Helper methods ------------
+*/
 
 void ACoverPointGenerator::ProjectNavPointsToGround(UWorld* world, FVector& p1, FVector& p2) const
 {
-	// project points to ground
+	const float maxProjectionHeight = 500.0f;
 	FHitResult projectHit;
-
+	
 	// first vertex
-	FVector projectEnd = p1 + FVector::DownVector * 200.0f;
-	UKismetSystemLibrary::LineTraceSingle(world, p1, projectEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, projectHit, true);
+	FVector projectEnd = p1 + FVector::DownVector * maxProjectionHeight;
+	PerformLineTrace(world, p1, projectEnd, projectHit);
 	if (projectHit.bBlockingHit) p1 = projectHit.Location;
-
+	
 	// second vertex
-	projectEnd = p2 + FVector::DownVector * 200.0f;
-	UKismetSystemLibrary::LineTraceSingle(world, p2, projectEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, projectHit, true);
+	projectEnd = p2 + FVector::DownVector * maxProjectionHeight;
+	PerformLineTrace(world, p2, projectEnd, projectHit);
 	if (projectHit.bBlockingHit) p2 = projectHit.Location;
 }
 
-void ACoverPointGenerator::TestAndAddSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand)
-{
-	// TODO: 
-	// (1) extend so that crouch- and stand height are taken into account
-	// (2) REFACTOR
-	// (3) more consistent variable naming
-
-	outLeftSide = leftVertex;
-	outRightSide = rightVertex;
-
-	const float vertOffset = 20.0f;
-	const float agentRadius = 30.0f; // actually half-radius
-	const float distToObstacle = agentRadius;
-	FVector rightVec = FVector::CrossProduct(FVector::UpVector, edgeDir);
-	FVector rightToNormal = FVector::CrossProduct(FVector::UpVector, obstNormal);
-
-	FHitResult rightCheck, leftCheck;
-	FVector initRightStart = rightVertex;
-	initRightStart.Z += 20.0f;
-	FVector initRightStop = initRightStart + rightVec * _obstacleCheckDistance;
-	UKismetSystemLibrary::LineTraceSingle(world, initRightStart, initRightStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, rightCheck, false);
-	FVector initLeftStart = rightVertex;
-	initLeftStart.Z += 20.0f;
-	FVector initLeftStop = initLeftStart + rightVec * _obstacleCheckDistance;
-	UKismetSystemLibrary::LineTraceSingle(world, initLeftStart, initLeftStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, leftCheck, false);
-
-	if (leftCheck.bBlockingHit && rightCheck.bBlockingHit && FVector::DotProduct(leftCheck.ImpactNormal, rightCheck.ImpactNormal) < 0.8f)
-	{
-		return;
-	}
-
-	// check if there is side-cover to the endpoints of this nav edge. If so, generate cover points at these locations.
-	FVector leftSideCoverPoint, rightSideCoverPoint;
-
-	if (GetSideCoverPoint(world, leftVertex, rightToNormal, obstNormal, edgeDir, leftSideCoverPoint))
-	{
-		if (!AreaAlreadyHasCoverPoint(leftSideCoverPoint))
-		{
-			FVector leanDirection = rightToNormal;
-			if (!canStand)
-			{
-				leanDirection.Z = CanLeanOver(world, leftSideCoverPoint, obstNormal) ? 1.0f : 0.0f;
-			}
-
-			UCoverPoint* cp = NewObject<UCoverPoint>(UCoverPoint::StaticClass());
-			cp->Init(leftSideCoverPoint, -obstNormal, leanDirection, canStand);
-			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
-			_coverPointBuffer.Emplace(cp);
-
-			//DrawDebugLine(world, FVector(leftSideCoverPoint), FVector(leftSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
-
-			outLeftSide = leftSideCoverPoint;		
-		}
-	}
-	if (GetSideCoverPoint(world, rightVertex, -rightToNormal, obstNormal, -edgeDir, rightSideCoverPoint))
-	{
-		if (!AreaAlreadyHasCoverPoint(rightSideCoverPoint))
-		{
-			FVector leanDirection = -rightToNormal;
-			if (!canStand)
-			{
-				leanDirection.Z = CanLeanOver(world, rightSideCoverPoint, obstNormal) ? 1.0f : 0.0f;
-			}
-			UCoverPoint* cp = NewObject<UCoverPoint>(UCoverPoint::StaticClass());
-			cp->Init(rightSideCoverPoint, -obstNormal, leanDirection, canStand);
-			_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
-			_coverPointBuffer.Emplace(cp);
-
-			//DrawDebugLine(world, FVector(rightSideCoverPoint), FVector(rightSideCoverPoint + obstNormal * 150.0f), FColor::Magenta, true);
-
-			outRightSide = rightSideCoverPoint;
-		}
-	}
-}
-
-bool ACoverPointGenerator::GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const
-{
-	const float vertOffset = 20.0f;
-	const float distToObstacle = _agentRadius;
-
-	FHitResult projectHit;
-	FVector startPoint = navVert;
-	startPoint.Z += vertOffset;
-	FVector projectEnd = startPoint + -obstNormal * _obstacleCheckDistance;
-
-	// shoot ray from start point (nav edge vertex) towards obstacle to decide whether we should search to the left or right to find a cover spot
-	UKismetSystemLibrary::LineTraceSingle(world, startPoint, projectEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, projectHit, false);
-
-	FVector sidePoint;
-	bool foundEndPoint = false;
-
-	// if vertex perpendicular to obstacle: sweep ray in direction of lean-dir until it doesn't intersect obstacle to find its edge
-	if (projectHit.bBlockingHit) // TODO: check obstacle normal instead?
-	{
-		FHitResult sideHitCheck;
-		float lastDistance = projectHit.Distance;
-		for (int i = 0; i < _numObstacleSideChecks; i++)
-		{
-			FVector start = startPoint + (i + 1) * edgeDir * _obstacleSideCheckInterval;
-			FVector stop = start + -obstNormal * _obstacleCheckDistance;
-
-			UKismetSystemLibrary::LineTraceSingle(world, start, stop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, sideHitCheck, false);
-			if (!sideHitCheck.bBlockingHit)
-			{
-				// edge found
-				float offsetFromObstacle = lastDistance - distToObstacle;
-				sidePoint = start - leanDirection * (_agentRadius + _obstacleSideCheckInterval) + -obstNormal * offsetFromObstacle;
-				foundEndPoint = true;
-				break;
-			}
-
-			lastDistance = sideHitCheck.Distance;
-		}
-	}
-	// if vertex not perp. to obstacle: sweep ray in opposite direction of lean-dir. until obstacle is found to find its edge
-	else
-	{
-		FHitResult sideHitCheck;
-		for (int i = 0; i < _numObstacleSideChecks; i++)
-		{
-			FVector start = startPoint + (i + 1) * -edgeDir * _obstacleSideCheckInterval;
-			FVector stop = start + -obstNormal * _obstacleCheckDistance;
-
-			UKismetSystemLibrary::LineTraceSingle(world, start, stop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, sideHitCheck, false);
-			if (sideHitCheck.bBlockingHit)
-			{
-				// edge found
-				float offsetFromObstacle = sideHitCheck.Distance - distToObstacle;
-				sidePoint = start - leanDirection * _agentRadius + -obstNormal * offsetFromObstacle;
-				foundEndPoint = true;
-				break;
-			}
-		}
-	}
-
-	// found an endpoint: make sure the sides are not blocked by the obstacles (and thus provide cover from which the agent can potentially attack)
-	if (foundEndPoint)
-	{
-		FHitResult visionFromSideCheck;
-		FVector visionFromSideCheckStart = sidePoint + leanDirection * (_sideLeanOffset + _agentRadius);
-		FVector visionFromSideCheckStop = visionFromSideCheckStart + -obstNormal * _obstacleCheckDistance;
-
-		UKismetSystemLibrary::LineTraceSingle(world, visionFromSideCheckStart, visionFromSideCheckStop, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, visionFromSideCheck, false);
-
-		if (!visionFromSideCheck.bBlockingHit)
-		{
-			// vision not blocked from side: valid side cover point
-			sidePoint.Z -= vertOffset;
-			outSideCoverPoint = sidePoint;
-
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
-const void ACoverPointGenerator::DrawNavEdges() const
-{
-	int numEdges = _navGeo.NavMeshEdges.Num();
-
-	UWorld* world = GetWorld();
-
-	for (int i = 0; i < numEdges; i += 2)
-	{
-		FVector v1 = _navGeo.NavMeshEdges[i];
-		FVector v2 = _navGeo.NavMeshEdges[i + 1];
-
-		FVector lineStart = v1;
-		FVector lineEnd = v2;
-
-		DrawDebugLine(world, lineStart, lineEnd, FColor::Magenta, true);
-
-		// DEBUG draw edge normals
-		FVector dir = (v2 - v1);
-		dir.Normalize();
-
-		FVector leftVec = FVector::CrossProduct(dir, FVector::UpVector);
-		FVector leftLineStart = v1 + dir * (v2 - v1).Size() * 0.5f;
-		FVector leftLineEnd = leftLineStart + (leftVec * 100.0f);
-
-		//DrawDebugLine(world, leftLineStart, leftLineEnd, FColor::Yellow, true);
-	}
-
-	int numVerts = _navGeo.MeshVerts.Num();
-	for (int i = 0; i < numVerts; i++)
-	{
-		DrawDebugSphere(world, _navGeo.MeshVerts[i], 10.0f, 5, FColor::Silver, true);
-	}
-}
-
-const void ACoverPointGenerator::DrawCoverPointLocations() const
+const void ACoverPointGenerator::DrawDebugData() const
 {
 	if (!_coverPoints.IsValid()) return;
 
@@ -461,7 +423,9 @@ const void ACoverPointGenerator::DrawCoverPointLocations() const
 		return;
 	}
 
-	float debugSphereExtent = 30.0f;
+	const float debugSphereExtent = 30.0f;
+	const float debugLineLength = 80.0f;
+	const float debugLineVertOffset = 10.0f;
 	// loop through octree
 	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints, _coverPoints->GetRootBounds()); it.HasPendingElements(); it.Advance())
 	{
@@ -470,67 +434,60 @@ const void ACoverPointGenerator::DrawCoverPointLocations() const
 		
 		if (cp != nullptr)
 		{
-			DrawDebugSphere(world, cp->_location, debugSphereExtent, 7, FColor::Cyan, true);
+			if (_drawCoverPoints)
+			{
+				DrawDebugSphere(world, cp->_location, debugSphereExtent, 7, FColor::Cyan, true);
+			}
 
-			// draw face away
-			//DrawDebugLine(world, cp->_location * FVector(1,1,0) + FVector(0,0,150), cp->_location + cp->_dirToCover * -150.0f + FVector(0, 0, 150.0f), FColor::Black, true);
-			//DrawDebugLine(world, cp->_location * FVector(1, 1, 0) + FVector(0, 0, 150), cp->_location + cp->_leanDirection * 150.0f * FVector(1, 1, 0) + FVector(0, 0, 150.0f), FColor::Black, true);
+			if (_drawCoverPointsNormal)
+			{
+				FVector startPoint = cp->_location + FVector::UpVector * debugLineVertOffset;
+				FVector stopPoint = startPoint + cp->_dirToCover * debugLineLength * -1.0f;
+				DrawDebugLine(world, startPoint, stopPoint, FColor::Magenta, true);
+			}
 
+			if (_drawCoverPointsLeanDirection)
+			{
+				FVector startPoint = cp->_location + FVector::UpVector * debugLineVertOffset;
+				FVector stopPoint = startPoint + cp->_leanDirection * debugLineLength;
+				DrawDebugLine(world, startPoint, stopPoint, FColor::Green, true);
+			}
 		}
 	}
-
-	//UE_LOG(LogTemp, Warning, TEXT("num points: %d"), blub);
 }
 
 TArray<UCoverPoint*> ACoverPointGenerator::GetCoverPointsWithinExtent(const FVector& position, float extent) const
 {
 	FBox bbox(position - FVector(extent), position + FVector(extent));
-
 	TArray<UCoverPoint*> points;
 
-	// example code how to query octree
+	// iterate over the octree to find cover points within the given BBOX
 	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints, bbox); it.HasPendingElements(); it.Advance())
 	{
-		// PROBLEM: points are generated within mesh (unreachable). either set min area size in project settings or post process the navigation mesh...
-		// probably out of scope for this project: just check if point is reachable
-		if (!IsValid(it.GetCurrentElement()._coverPoint))
+		if (IsValid(it.GetCurrentElement()._coverPoint))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("nullptr detected in cover points!"));
-			return points;
+			points.Emplace(it.GetCurrentElement()._coverPoint);
 		}
-		points.Emplace(it.GetCurrentElement()._coverPoint);
 	}
-
-	int numPoints = points.Num();
-	if (numPoints == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("no points in proximity. bbox center: %s, bbox extent: %s"), *bbox.GetCenter().ToString(), *bbox.GetExtent().ToString());
-	}
-
-	//DrawDebugBox(GetWorld(), point._location, FVector(100.0f), FColor::Black, false, 20.0f);
-	//DrawDebugLine(GetWorld(), point._location, point._location - point._dirToCover * 150.0f, FColor::Black, false, 20.0f, (uint8)'\000', 5.0f);
 
 	return points;
 }
 
+// returns how many obstacles are in between the cover point and a given target location
 int ACoverPointGenerator::GetNumberOfIntersectionsFromCover(const UCoverPoint* cp, const FVector& targetLocation) const
 {
-	const int infinite = TNumericLimits<int>::Max();
+	const int infinite = 0xffff;
 	const float epsilon = 0.00001f;
 	const float enemyCrouchHeight = 80.0f;
 	const FVector& leanDir = cp->_leanDirection;
 
 	int numHitsSide, numHitsOver = infinite; 
-	FVector2D leanDir2D = FVector2D(leanDir) * _sideLeanOffset;
-
-	bool canLeanOver = std::abs(leanDir.Z) > epsilon;
-	bool canLeanSide = leanDir2D.SizeSquared() > epsilon;
 
 	UWorld* world = GetWorld();
 	if (!IsValid(world)) return infinite;
 
-	// check if agent can lean over this cover point
-	if (canLeanOver)
+	// check number of intersections if agent would lean over this cover point obstacle
+	if (CanLeanOver(cp))
 	{
 		FVector traceStart = cp->_location;
 		traceStart.Z += _standAttackHeight;
@@ -540,71 +497,52 @@ int ACoverPointGenerator::GetNumberOfIntersectionsFromCover(const UCoverPoint* c
 
 		TArray<FHitResult> outHits;
 		UKismetSystemLibrary::LineTraceMulti(world, traceStart, traceEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHits, true);
-		//DrawDebugLine(world, traceStart, traceEnd, FColor::Green, false, 1.0f);
-		//DrawDebugLine(world, cp->_location, traceStart, FColor::Green, false, 2.0f);
-
+		
 		numHitsOver = outHits.Num();
 	}
 
-	// check if agent can lean to the side of this cover point
-	if (canLeanSide)
+	// check number of intersections if agent would lean aside from this cover point obstacle
+	if (CanLeanSide(cp))
 	{
 		FVector traceStart = cp->_location;
 		traceStart.Z += _crouchAttackHeight;
-		traceStart.X += leanDir2D.X;
-		traceStart.Y += leanDir2D.Y;
+		traceStart.X += leanDir.X;
+		traceStart.Y += leanDir.Y;
 
 		FVector traceEnd = targetLocation;
 		traceEnd.Z += enemyCrouchHeight;
 
 		TArray<FHitResult> outHits;
 		UKismetSystemLibrary::LineTraceMulti(world, traceStart, traceEnd, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHits, true);
-		
-		//DrawDebugLine(world, cp->_location, traceStart, FColor::Blue, false, 2.0f);
-		//DrawDebugLine(world, traceStart, traceEnd, FColor::Blue, false, 1.0f);
 
 		numHitsSide = outHits.Num();
 	}
 
-	// optionally: check if can hit with lean-over AND lean-side.
-
-	int numHits;
-	// prefer some cover over no cover
-	//if (numHitsSide == 0 && numHitsOver > 0) numHits = numHitsOver;
-	//else if(numHitsOver == 0 && numHitsSide > 0) numHits = numHitsSide;
-	//else numHits = FMath::Min(numHitsSide, numHitsOver);
-	numHits = FMath::Min(numHitsSide, numHitsOver);
-	FColor color;
-	if (numHits == 0)
-		color = FColor::Green;
-	else if (numHits == 1)
-		color = FColor::Yellow;
-	else if (numHits == 2)
-		color = FColor::Orange;
-	else if (numHits == 3)
-		color = FColor::Red;
-	else
-		color = FColor::Cyan;
-	//DrawDebugSphere(world, cp->_location, 50.0f, 12, color, false, 1.0f);
-
-	return numHits;
+	return FMath::Min(numHitsSide, numHitsOver);
 }
 
-bool ACoverPointGenerator::CanAttackFromCover(const UCoverPoint* cp, const FVector& targetLocation) const
+void ACoverPointGenerator::StoreNewCoverPoint(const FVector& location, const FVector& dirToCover, const FVector& leanDir, const bool& canStand)
 {
-	const float epsilon = 0.0001;
+	UCoverPoint* cp = NewObject<UCoverPoint>();
+	cp->Init(location, dirToCover, leanDir, canStand);
 
-	const FVector& leanDir = cp->_leanDirection;
-	FVector2D leanDir2D = FVector2D(leanDir) * _sideLeanOffset;
-	bool canLeanOver = std::abs(leanDir.Z) < epsilon;
-	bool canLeanSide = leanDir2D.SizeSquared() < epsilon;
-
-	return true;
+	_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
+	_coverPointBuffer.Emplace(cp);
 }
 
+void ACoverPointGenerator::PerformLineTrace(UWorld* world, FVector& start, FVector& end, FHitResult& outHit) const
+{
+	UKismetSystemLibrary::LineTraceSingle(world, start, end, ETraceTypeQuery::TraceTypeQuery1, false, TArray<AActor*>(), EDrawDebugTrace::None, outHit, true);
+}
+
+
+/*
+---------- Delegates ------------
+*/
 
 void ACoverPointGenerator::OnNavigationGenerationFinished(class ANavigationData* NavData)
 {
+	UE_LOG(LogTemp, Warning, TEXT("Cover Point data updated!"));
 	ARecastNavMesh* navMeshData = static_cast<ARecastNavMesh*>(NavData);
 	_navGeo.bGatherNavMeshEdges = true;
 	navMeshData->BeginBatchQuery();
@@ -613,13 +551,9 @@ void ACoverPointGenerator::OnNavigationGenerationFinished(class ANavigationData*
 
 	FlushPersistentDebugLines(GetWorld());
 	UpdateCoverPointData();
+
 	// apply octree optimization
 	_coverPoints->ShrinkElements();
 
-	// draw debug data
-	//DrawNavEdges();
-	DrawCoverPointLocations();
-
-	UE_LOG(LogTemp, Warning, TEXT("Cover Point data updated!"));
+	DrawDebugData();
 }
-

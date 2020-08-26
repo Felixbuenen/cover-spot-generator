@@ -1,13 +1,14 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "EngineUtils.h"
+#include "EnvQueryTest_CoverSpot_IsSafe.h"
+
 #include "CoverDataStructures.h"
 #include "CoverPointGenerator.h"
-#include "Kismet/KismetSystemLibrary.h"
-#include "DrawDebugHelpers.h"
 #include "EnvQueryItemType_CoverPoint.h"
 
-#include "EnvQueryTest_CoverSpot_IsSafe.h"
+#include "EngineUtils.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "DrawDebugHelpers.h"
 
 UEnvQueryTest_CoverSpot_IsSafe::UEnvQueryTest_CoverSpot_IsSafe(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {

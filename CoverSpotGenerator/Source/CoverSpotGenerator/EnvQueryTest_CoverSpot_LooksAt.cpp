@@ -1,12 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+#include "EnvQueryTest_CoverSpot_LooksAt.h"
 
 #include "CoverDataStructures.h"
-#include "EnvQueryItemType_CoverPoint.h"
-#include "EngineUtils.h"
 #include "CoverPointGenerator.h"
 
-#include "EnvQueryTest_CoverSpot_LooksAt.h"
+#include "EnvQueryItemType_CoverPoint.h"
+#include "EngineUtils.h"
 
 UEnvQueryTest_CoverSpot_LooksAt::UEnvQueryTest_CoverSpot_LooksAt(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
