@@ -109,20 +109,19 @@ void ACoverPointGenerator::UpdateCoverPointData()
 		// get the normal of the face of the obstacle that this edge is parallel to
 		FHitResult obstacleCheckHit;
 		if (!GetObstacleFaceNormal(world, v1, edgeDir, edgeLength, obstacleCheckHit)) continue;
-		
-		// check if can stand over here or for each internal point?
-		bool isStandingCover = CanStand(world, v1 + edgeDir * edgeLength * 0.5f, obstacleCheckHit.Normal);
 
 		FVector outLeftSide, outRightSide;
-		GenerateSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.ImpactNormal, outLeftSide, outRightSide, isStandingCover);
+		GenerateSidePoints(world, v2, v1, edgeDir, obstacleCheckHit.ImpactNormal, outLeftSide, outRightSide);
 
-		if (isStandingCover) continue;
-
-		// check if can lean over here or for each internal point?
+		// if not "complex can lean over obstacle test", check if agent can lean over obstacle once at middle of edge (may be too coarse)
+		if (!_complexCanLeanOverObstacleTest)
+		{
+			bool isStandingCover = CanStand(world, v1 + edgeDir * edgeLength * 0.5f, obstacleCheckHit.Normal);
+			if (isStandingCover) continue;
+		}
 
 		bool hasLeftSidePoint = !outLeftSide.Equals(v2);
 		bool hasRightSidePoint = !outRightSide.Equals(v1);
-
 		GenerateInternalPoints(world, outLeftSide, outRightSide, obstacleCheckHit.Normal, hasLeftSidePoint, hasRightSidePoint);
 	}
 
@@ -188,7 +187,7 @@ void ACoverPointGenerator::GenerateInternalPoints(UWorld* world, const FVector& 
 	}
 }
 
-void ACoverPointGenerator::GenerateSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand)
+void ACoverPointGenerator::GenerateSidePoints(UWorld* world, const FVector& leftVertex, const FVector& rightVertex, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide)
 {
 	outLeftSide = leftVertex;
 	outRightSide = rightVertex;
@@ -221,6 +220,7 @@ void ACoverPointGenerator::GenerateSidePoints(UWorld* world, const FVector& left
 	{
 		if (!AreaAlreadyHasCoverPoint(location))
 		{
+			bool canStand = CanStand(world, location, -dirToCover);
 			if (!canStand)
 			{
 				leanDirection.Z = CanLeanOver(world, location, obstNormal) ? 1.0f : 0.0f;

@@ -19,8 +19,6 @@ class COVERSPOTGENERATOR_API ACoverPointGenerator : public AActor
 public:
 
 #pragma region GENERATION_PROPERTIES
-	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
-	bool _asyncGeneration = false;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	float _coverPointMinDistance = 150.0f;
@@ -59,6 +57,9 @@ public:
 	int _numObstacleSideChecks = 10;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
+	bool _complexCanLeanOverObstacleTest = false;
+
+	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	float _maxBboxExtent = 32000.f;
 #pragma endregion GENERATION_PROPERTIES
 
@@ -87,7 +88,7 @@ protected:
 	void ResetCoverPointData();
 
 	// Generation
-	void GenerateSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide, bool canStand);
+	void GenerateSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide);
 	void GenerateInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint);
 	bool GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const;
 	
