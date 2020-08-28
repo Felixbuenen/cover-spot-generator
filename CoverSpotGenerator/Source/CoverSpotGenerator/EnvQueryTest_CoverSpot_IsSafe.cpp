@@ -6,7 +6,6 @@
 #include "CoverPointGenerator.h"
 #include "EnvQueryItemType_CoverPoint.h"
 
-#include "EngineUtils.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "DrawDebugHelpers.h"
 
@@ -48,8 +47,7 @@ void UEnvQueryTest_CoverSpot_IsSafe::RunTest(FEnvQueryInstance& QueryInstance) c
 	UWorld* world = GetWorld();
 	if (!IsValid(world)) return;
 
-	TActorIterator<ACoverPointGenerator> it(world);
-	const ACoverPointGenerator* cpg = *it;
+	const ACoverPointGenerator* cpg = ACoverPointGenerator::Get(world);
 	if (!IsValid(cpg))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("EQS cover test: no generator"));

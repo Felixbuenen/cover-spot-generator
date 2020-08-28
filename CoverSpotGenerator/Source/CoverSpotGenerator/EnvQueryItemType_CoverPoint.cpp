@@ -2,6 +2,7 @@
 
 
 #include "EnvQueryItemType_CoverPoint.h"
+
 #include "EnvironmentQuery/Items/EnvQueryItemType.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Object.h"

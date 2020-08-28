@@ -5,6 +5,7 @@
 #include "CoverDataStructures.h"
 
 #include "GameFramework/Actor.h"
+#include "CoverSpotGeneratorAsync.h"
 #include "NavMesh/RecastNavMesh.h"
 #include "CoverPointGenerator.generated.h"
 
@@ -13,9 +14,14 @@ class COVERSPOTGENERATOR_API ACoverPointGenerator : public AActor
 {
 	GENERATED_BODY()
 
+	friend class CoverSpotGeneratorAsync;
+
 public:
 
 #pragma region GENERATION_PROPERTIES
+	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
+	bool _asyncGeneration = false;
+
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	float _coverPointMinDistance = 150.0f;
 
@@ -116,5 +122,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	TArray<UCoverPoint*> GetCoverPointsWithinExtent(const FVector& position, float extent) const;
 
+	static const ACoverPointGenerator* Get(UWorld* world);
 	int GetNumberOfIntersectionsFromCover(const UCoverPoint* cp, const FVector& targetLocation) const;
 };

@@ -5,7 +5,6 @@
 #include "EnvQueryItemType_CoverPoint.h"
 #include "CoverPointGenerator.h"
 
-#include "EngineUtils.h"
 #include "AISystem.h"
 
 UEnvQueryTest_CoverSpotNObstacles::UEnvQueryTest_CoverSpotNObstacles(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -34,8 +33,7 @@ void UEnvQueryTest_CoverSpotNObstacles::RunTest(FEnvQueryInstance& QueryInstance
 		return;
 	}
 
-	TActorIterator<ACoverPointGenerator> it(GetWorld());
-	const ACoverPointGenerator* cpg = *it;
+	const ACoverPointGenerator* cpg = ACoverPointGenerator::Get(GetWorld());
 	
 	if (!IsValid(cpg))
 	{

@@ -6,8 +6,6 @@
 #include "CoverPointGenerator.h"
 #include "EnvQueryItemType_CoverPoint.h"
 
-#include "EngineUtils.h"
-
 UEnvQueryTest_CoverSpot_LooksAt::UEnvQueryTest_CoverSpot_LooksAt(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	ValidItemType = UEnvQueryItemType_CoverPoint::StaticClass();
@@ -39,11 +37,7 @@ void UEnvQueryTest_CoverSpot_LooksAt::RunTest(FEnvQueryInstance& QueryInstance) 
 		return;
 	}
 
-	UWorld* world = GetWorld();
-	if (!IsValid(world)) return;
-
-	TActorIterator<ACoverPointGenerator> it(world);
-	const ACoverPointGenerator* cpg = *it;
+	const ACoverPointGenerator* cpg = ACoverPointGenerator::Get(GetWorld());
 	if (!IsValid(cpg))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("EQS cover test: no generator found. Make sure there is a CoverSpotGenerator in the scene."));

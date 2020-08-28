@@ -29,10 +29,10 @@ void UEnvQueryGenerator_CoverPoints::GenerateItems(FEnvQueryInstance& QueryInsta
 	QueryInstance.PrepareContext(GenerateAround, ContextLocations);
 
 	// get the cover point generator
-	// TODO: make a static getter
-	TActorIterator<ACoverPointGenerator> it(GetWorld());
-	const ACoverPointGenerator* cpg = *it;
+	UWorld* world = GetWorld();
+	if (!IsValid(world)) return;
 
+	const ACoverPointGenerator* cpg = ACoverPointGenerator::Get(world);
 	if (!IsValid(cpg))
 	{
 		UE_LOG(LogTemp, Error, TEXT("EQS cover generator: no generator found. Make sure there is a CoverSpotGenerator in the scene."));

@@ -10,6 +10,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/LevelBounds.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "EngineUtils.h"
 #include "Engine/Engine.h"
 
 #define EPSILON 0.00001
@@ -22,6 +23,16 @@ ACoverPointGenerator::ACoverPointGenerator()
 	
 	// init octree
 	_coverPoints = MakeUnique<TCoverPointOctree>(FVector::ZeroVector, _maxBboxExtent);
+}
+
+const ACoverPointGenerator* ACoverPointGenerator::Get(UWorld* world)
+{
+	if (!IsValid(world)) return nullptr;
+
+	TActorIterator<ACoverPointGenerator> it(world);
+	const ACoverPointGenerator* cpg = *it;
+
+	return cpg;
 }
 
 
