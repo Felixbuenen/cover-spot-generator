@@ -21,6 +21,9 @@ public:
 #pragma region GENERATION_PROPERTIES
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
+	bool _asyncGeneration = true;
+
+	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	float _coverPointMinDistance = 150.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
@@ -76,6 +79,7 @@ protected:
 
 	// Sets default values for this actor's properties
 	ACoverPointGenerator();
+	virtual void Tick(float dt) override;
 
 	// Management
 	void _Initialize(const FBox& bbox);
@@ -107,7 +111,8 @@ protected:
 	UPROPERTY()
 	TArray<UCoverPoint*> _coverPointBuffer; // workaround: store points in TArray so they are properly garbage collected
 	TUniquePtr<TCoverPointOctree> _coverPoints;
-	bool _isInitialized;
+	mutable bool _isInitialized;
+	mutable bool _needsRedrawing;
 
 	// nav mesh data
 	FRecastDebugGeometry _navGeo;

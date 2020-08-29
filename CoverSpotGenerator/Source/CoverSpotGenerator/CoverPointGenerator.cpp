@@ -12,6 +12,8 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
+#include "Async/AsyncWork.h"
+#include "CoverSpotGeneratorAsync.h"
 
 #define EPSILON 0.00001
 
@@ -21,7 +23,18 @@ ACoverPointGenerator::ACoverPointGenerator()
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	_isInitialized = false;
+	_needsRedrawing = true;
 }
+
+void ACoverPointGenerator::Tick(float dt)
+{
+	// poll if debug visualization needs to be redrawn
+	if (_asyncGeneration && _needsRedrawing)
+	{
+		DrawDebugData();
+	}
+}
+
 
 /*
 ---------- Interface ------------
@@ -40,7 +53,20 @@ ACoverPointGenerator* ACoverPointGenerator::Get(UWorld* world)
 
 void ACoverPointGenerator::UpdateCoverpointData(const FBox& bbox)
 {
-	_Initialize(bbox);
+	_isInitialized = false;
+
+	if (_asyncGeneration)
+	{
+		UWorld* world = GetWorld();
+		ACoverPointGenerator* cpg = ACoverPointGenerator::Get(world);
+		FAutoDeleteAsyncTask<CoverSpotGeneratorAsync>* task = new FAutoDeleteAsyncTask<CoverSpotGeneratorAsync>(cpg, bbox);
+		task->StartBackgroundTask();
+	}
+	else
+	{
+		_Initialize(bbox);
+		DrawDebugData();
+	}
 }
 
 void ACoverPointGenerator::ClearCoverpointData()
@@ -169,15 +195,6 @@ void ACoverPointGenerator::_Initialize(const FBox& bbox)
 	timeTaken = (timeAfter - timeBefore).GetTotalSeconds();
 	UE_LOG(LogTemp, Log, TEXT("Coverpoint generation time: %f"), timeTaken);
 
-	// apply octree optimization
-	_coverPoints->ShrinkElements();
-
-	timeBefore = FDateTime::Now();
-	DrawDebugData();
-	timeAfter = FDateTime::Now();
-	timeTaken = (timeAfter - timeBefore).GetTotalSeconds();
-	UE_LOG(LogTemp, Log, TEXT("draw debug data: %f"), timeTaken);
-
 	totalTimeAfter = FDateTime::Now();
 	float totalTimeTaken = (totalTimeAfter - totalTimeBefore).GetTotalSeconds();
 	UE_LOG(LogTemp, Log, TEXT("total time taken: %f"), totalTimeTaken);
@@ -229,7 +246,11 @@ void ACoverPointGenerator::_UpdateCoverPointData(const FBox& bbox)
 	int numCoverPoints = _coverPointBuffer.Num();
 	UE_LOG(LogTemp, Log, TEXT("Num cover points: %d"), numCoverPoints);
 
+	// apply octree optimization
+	_coverPoints->ShrinkElements();
+
 	_isInitialized = true;
+	_needsRedrawing = true;
 }
 
 void ACoverPointGenerator::ResetCoverPointData()
@@ -552,6 +573,8 @@ const void ACoverPointGenerator::DrawDebugData() const
 			}
 		}
 	}
+
+	_needsRedrawing = false;
 }
 
 void ACoverPointGenerator::StoreNewCoverPoint(const FVector& location, const FVector& dirToCover, const FVector& leanDir, const bool& canStand)
