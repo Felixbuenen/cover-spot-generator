@@ -20,7 +20,7 @@ public:
 		FVector _dirToCover;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
-		FVector _leanDirection;
+		FVector _leanDirection; 
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Cover Point")
 		bool _canStand;
@@ -55,7 +55,7 @@ struct FCoverPointOctreeElement
 
 struct FCoverPointOctreeSemantics
 {
-	enum { MaxElementsPerLeaf = 4 };
+	enum { MaxElementsPerLeaf = 16 };
 	enum { MinInclusiveElementsPerNode = 1 };
 	enum { MaxNodeDepth = 16 };
 

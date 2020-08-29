@@ -59,8 +59,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	bool _complexCanLeanOverObstacleTest = false;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
-	float _maxBboxExtent = 32000.f;
 #pragma endregion GENERATION_PROPERTIES
 
 #pragma region DEBUG_PROPERTIES
@@ -79,17 +77,14 @@ protected:
 	// Sets default values for this actor's properties
 	ACoverPointGenerator();
 
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
 	// Management
-	void Initialize();
-	void UpdateCoverPointData();
+	void _Initialize(const FBox& bbox);
+	void _UpdateCoverPointData(const FBox& bbox);
 	void ResetCoverPointData();
 
 	// Generation
-	void GenerateSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal, FVector& outLeftSide, FVector& outRightSide);
-	void GenerateInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, bool hasLeftSidePoint, bool hasRightSidePoint);
+	void GenerateSidePoints(UWorld* world, const FVector& leftEndPoint, const FVector& rightEndPoint, const FVector& edgeDir, const FVector& obstNormal, const FBox& bbox, FVector& outLeftSide, FVector& outRightSide);
+	void GenerateInternalPoints(UWorld* world, const FVector& leftPoint, const FVector& rightPoint, const FVector& obstNormal, const FBox& bbox, bool hasLeftSidePoint, bool hasRightSidePoint);
 	bool GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const;
 	
 	// Tests
@@ -106,23 +101,29 @@ protected:
 	void StoreNewCoverPoint(const FVector& location, const FVector& dirToCover, const FVector& leanDir, const bool& canStand);
 	const void DrawDebugData() const;
 	FORCEINLINE void PerformLineTrace(UWorld* world, FVector& start, FVector& end, FHitResult& outHit) const;
+	FORCEINLINE bool InsideGenerationVolume(const FVector& point, const FBox& box) const;
+
+	// Member variables
+	UPROPERTY()
+	TArray<UCoverPoint*> _coverPointBuffer; // workaround: store points in TArray so they are properly garbage collected
+	TUniquePtr<TCoverPointOctree> _coverPoints;
+	bool _isInitialized;
 
 	// nav mesh data
 	FRecastDebugGeometry _navGeo;
 
-	UPROPERTY()
-	TArray<UCoverPoint*> _coverPointBuffer; // workaround: store points in TArray so they are properly garbage collected
-	TUniquePtr<TCoverPointOctree> _coverPoints;
-
-private:
-	UFUNCTION()
-	void OnNavigationGenerationFinished(class ANavigationData* NavData);
-
 public:
+	// INTERFACE
+	
+	UFUNCTION(BlueprintCallable)
+	void UpdateCoverpointData(const FBox& bbox);
+
+	UFUNCTION(BlueprintCallable)
+	void ClearCoverpointData();
 
 	UFUNCTION(BlueprintCallable)
 	TArray<UCoverPoint*> GetCoverPointsWithinExtent(const FVector& position, float extent) const;
 
-	static const ACoverPointGenerator* Get(UWorld* world);
+	static ACoverPointGenerator* Get(UWorld* world);
 	int GetNumberOfIntersectionsFromCover(const UCoverPoint* cp, const FVector& targetLocation) const;
 };
