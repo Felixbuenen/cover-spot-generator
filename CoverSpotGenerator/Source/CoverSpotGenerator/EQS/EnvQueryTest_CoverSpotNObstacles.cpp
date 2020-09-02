@@ -3,7 +3,7 @@
 #include "EnvQueryTest_CoverSpotNObstacles.h"
 
 #include "EnvQueryItemType_CoverPoint.h"
-#include "CoverPointGenerator.h"
+#include "../Generator/CoverPointGenerator.h"
 
 #include "AISystem.h"
 

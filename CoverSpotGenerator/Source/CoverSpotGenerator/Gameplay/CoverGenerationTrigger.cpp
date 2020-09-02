@@ -3,7 +3,7 @@
 
 #include "CoverGenerationTrigger.h"
 
-#include "CoverPointGenerator.h"
+#include "../Generator/CoverPointGenerator.h"
 
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"

@@ -3,7 +3,7 @@
 
 #include "EnvQueryGenerator_CoverPoints.h"
 
-#include "CoverPointGenerator.h"
+#include "../Generator/CoverPointGenerator.h"
 #include "EnvQueryItemType_CoverPoint.h"
 
 #include "EnvironmentQuery/Contexts/EnvQueryContext_Querier.h"

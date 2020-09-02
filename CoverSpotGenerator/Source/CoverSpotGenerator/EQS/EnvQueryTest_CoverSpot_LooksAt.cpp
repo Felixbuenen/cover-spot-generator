@@ -2,8 +2,8 @@
 
 #include "EnvQueryTest_CoverSpot_LooksAt.h"
 
-#include "CoverDataStructures.h"
-#include "CoverPointGenerator.h"
+#include "../Generator/CoverDataStructures.h"
+#include "../Generator/CoverPointGenerator.h"
 #include "EnvQueryItemType_CoverPoint.h"
 
 UEnvQueryTest_CoverSpot_LooksAt::UEnvQueryTest_CoverSpot_LooksAt(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)

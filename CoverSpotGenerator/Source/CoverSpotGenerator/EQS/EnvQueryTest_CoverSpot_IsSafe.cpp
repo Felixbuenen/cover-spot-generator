@@ -2,8 +2,8 @@
 
 #include "EnvQueryTest_CoverSpot_IsSafe.h"
 
-#include "CoverDataStructures.h"
-#include "CoverPointGenerator.h"
+#include "../Generator/CoverDataStructures.h"
+#include "../Generator/CoverPointGenerator.h"
 #include "EnvQueryItemType_CoverPoint.h"
 
 #include "Kismet/KismetSystemLibrary.h"

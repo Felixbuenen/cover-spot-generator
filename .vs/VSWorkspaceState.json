@@ -1,0 +1,11 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\CoverSpotGenerator",
+    "\\CoverSpotGenerator\\Source",
+    "\\CoverSpotGenerator\\Source\\CoverSpotGenerator",
+    "\\CoverSpotGenerator\\Source\\CoverSpotGenerator\\Generator"
+  ],
+  "SelectedNode": "\\CoverSpotGenerator\\Source\\CoverSpotGenerator\\Generator\\CoverPointGenerator.h",
+  "PreviewInSolutionExplorer": false
+}

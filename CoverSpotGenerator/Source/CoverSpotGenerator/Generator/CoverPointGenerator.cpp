@@ -274,7 +274,7 @@ void ACoverPointGenerator::GenerateInternalPoints(UWorld* world, const FVector& 
 	float internalEdgeLength = internalEdge.Size();
 	internalEdge /= internalEdgeLength;
 
-	int numInternalPoints = (int)(internalEdgeLength / _coverPointMinDistance) + 1;
+	int numInternalPoints = (int)(internalEdgeLength / _coverPointMinDistanceOnEdge) + 1;
 	if (numInternalPoints <= 1) return;
 
 	// optionally clamp to max. number of cover points for nav mesh edge
@@ -352,7 +352,7 @@ void ACoverPointGenerator::GenerateSidePoints(UWorld* world, const FVector& left
 //  along the obstacle to find the side of an obstacle.
 bool ACoverPointGenerator::GetSideCoverPoint(UWorld* world, const FVector& navVert, const FVector& leanDirection, const FVector& obstNormal, const FVector& edgeDir, FVector& outSideCoverPoint) const
 {
-	const float vertOffset = 20.0f;
+	const float vertOffset = _minCrouchCoverHeight;
 
 	// decide whether we should search along the left or right to find a cover spot
 	FVector startPoint = navVert;
@@ -383,10 +383,10 @@ bool ACoverPointGenerator::GetSideCoverPoint(UWorld* world, const FVector& navVe
 			bool foundEdge = sweepInLeanDir != sideHitCheck.bBlockingHit;
 			if (foundEdge)
 			{
-				// edge found: offset the resulting point from the obstacle such that there is a clearance of _agentRadius
+				// edge found: offset the resulting point from the obstacle such that there is a clearance of _coverPointOffset
 				float distToObstacle = sweepInLeanDir ? lastDistance : sideHitCheck.Distance;
-				float offsetFromObstacle = distToObstacle - _agentRadius;
-				float leanOffset = sweepInLeanDir ? _agentRadius + _obstacleSideCheckInterval : _agentRadius;
+				float offsetFromObstacle = distToObstacle - _coverPointOffset;
+				float leanOffset = sweepInLeanDir ? _coverPointOffset + _obstacleSideCheckInterval : _coverPointOffset;
 
 				_sidePoint = start - leanDirection * leanOffset + -obstNormal * offsetFromObstacle;
 				foundEndPoint = true;
@@ -406,7 +406,7 @@ bool ACoverPointGenerator::GetSideCoverPoint(UWorld* world, const FVector& navVe
 	// make sure resulting side cover point is valid (may not be true due to nav-mesh imperfections)
 	if (foundEndPoint)
 	{
-		FVector visionFromSideCheckStart = sidePoint + leanDirection * (_sideLeanOffset + _agentRadius);
+		FVector visionFromSideCheckStart = sidePoint + leanDirection * (_sideLeanOffset + _coverPointOffset);
 		FVector visionFromSideCheckStop = visionFromSideCheckStart + -obstNormal * _obstacleCheckDistance;
 
 		FHitResult visionFromSideCheck;
@@ -486,7 +486,7 @@ bool ACoverPointGenerator::AreaAlreadyHasCoverPoint(const FVector& position) con
 	// example code how to query octree
 	for (TCoverPointOctree::TConstElementBoxIterator<> it(*_coverPoints, bbox); it.HasPendingElements(); it.Advance())
 	{
-		if ((it.GetCurrentElement()._coverPoint->_location - position).Size() < 10.0f)
+		if ((it.GetCurrentElement()._coverPoint->_location - position).Size() < _coverPointMinDistance)
 		{
 			return true;
 		}
@@ -582,7 +582,7 @@ void ACoverPointGenerator::StoreNewCoverPoint(const FVector& location, const FVe
 	UCoverPoint* cp = NewObject<UCoverPoint>();
 	cp->Init(location, dirToCover, leanDir, canStand);
 
-	_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistance));
+	_coverPoints->AddElement(FCoverPointOctreeElement(cp, _coverPointMinDistanceOnEdge));
 	_coverPointBuffer.Emplace(cp);
 }
 

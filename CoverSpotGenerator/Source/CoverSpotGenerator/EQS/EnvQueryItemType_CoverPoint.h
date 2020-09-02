@@ -4,7 +4,7 @@
 
 #include "EnvironmentQuery/Items/EnvQueryItemType_VectorBase.h"
 
-#include "CoverDataStructures.h"
+#include "../Generator/CoverDataStructures.h"
 
 #include "EnvQueryItemType_CoverPoint.generated.h"
 

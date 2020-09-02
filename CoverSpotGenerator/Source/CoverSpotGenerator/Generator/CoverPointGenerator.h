@@ -21,19 +21,19 @@ public:
 #pragma region GENERATION_PROPERTIES
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
-	bool _asyncGeneration = true;
+	float _coverPointMinDistanceOnEdge = 150.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
-	float _coverPointMinDistance = 150.0f;
+	float _coverPointMinDistance = 50.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	int _maxNumPointsPerEdge = 8;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
-	float _agentRadius = 30.0f;
+	float _coverPointOffset = 30.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
-	float _minCrouchCoverHeight = 100.0f; // minimum height of an obstacle for it to be considered to be a crouch-cover position 
+	float _minCrouchCoverHeight = 120.0f; // minimum height of an obstacle for it to be considered to be a crouch-cover position 
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	float _minStandCoverHeight = 180.0f; // minimum height of an obstacle for it to be considered to be a standing-cover position
@@ -47,18 +47,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	float _crouchAttackHeight = 100.0f; // physical height at which the agent shoots while crouched
 
-	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
+	UPROPERTY(EditAnywhere, Category = "Parameters|Generation|Side points")
 	float _sideLeanOffset = 50.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	float _obstacleCheckDistance = 100.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
+	UPROPERTY(EditAnywhere, Category = "Parameters|Generation|Side points")
 	float _obstacleSideCheckInterval = 10.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
+	UPROPERTY(EditAnywhere, Category = "Parameters|Generation|Side points")
 	int _numObstacleSideChecks = 10;
 
+	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
+	bool _asyncGeneration = true;
+	
 	UPROPERTY(EditAnywhere, Category = "Parameters|Generation")
 	bool _complexCanLeanOverObstacleTest = false;
 
